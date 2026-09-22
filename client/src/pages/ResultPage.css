@@ -1,0 +1,362 @@
+/* ==========================================================================
+   ResultPage —— 本局终章
+   全部单列；桌面居中 760px。长昵称必须换行不溢出。
+   ========================================================================== */
+
+.page.result {
+  max-width: 760px;
+  gap: 16px;
+}
+
+/* ---------- 页头 ---------- */
+
+.result__head {
+  text-align: center;
+  padding-top: 6px;
+}
+
+.result__eyebrow {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  color: var(--ink-soft);
+}
+
+.result__title {
+  margin: 4px 0 0;
+  font-size: clamp(26px, 7.4vw, 40px);
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
+  color: var(--ink);
+}
+
+/* ---------- 状元大卡片 ---------- */
+
+.result-champ {
+  text-align: center;
+  padding: 20px 16px 18px;
+}
+
+.result-champ__eyebrow {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
+  color: var(--gold);
+}
+
+.result-champ__seal {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0 10px;
+}
+
+.result-champ__name {
+  margin: 0;
+  font-size: clamp(28px, 8vw, 48px);
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.result-champ__award {
+  margin: 6px 0 0;
+  font-family: var(--font-kai);
+  font-size: clamp(17px, 5vw, 22px);
+  letter-spacing: 0.16em;
+}
+
+.result-champ__dice {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 14px 0 6px;
+}
+
+.result-champ__dice-text {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.24em;
+}
+
+.result-champ__scores {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.result-champ__score-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 253, 245, 0.6);
+  border: 1px solid var(--line);
+}
+
+.result-champ__score-row dt {
+  font-size: 14px;
+  color: var(--ink-soft);
+  letter-spacing: 0.1em;
+}
+
+.result-champ__score-row dd {
+  margin: 0;
+  font-family: var(--font-kai);
+  font-size: 19px;
+  color: var(--ink);
+}
+
+.result-champ__score-row.is-total {
+  border-color: var(--gold-line);
+  background: rgba(232, 199, 122, 0.2);
+}
+
+.result-champ__score-row.is-total dd {
+  color: var(--cinnabar);
+  font-size: 22px;
+}
+
+.result-champ__seat {
+  margin: 10px 0 0;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+}
+
+/* ---------- 排行榜 ---------- */
+
+.result-rank__hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.result-rank__list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rank {
+  padding: 11px 12px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 245, 0.62);
+}
+
+/* 金榜（第一名） */
+.rank--r1 {
+  border-color: var(--gold-line);
+  background:
+    linear-gradient(180deg, rgba(232, 199, 122, 0.26), rgba(255, 253, 245, 0.72));
+  box-shadow: var(--shadow-soft);
+}
+
+/* 榜帖（第二、三名） */
+.rank--r2,
+.rank--r3 {
+  border-color: rgba(61, 89, 96, 0.28);
+  background: rgba(255, 253, 245, 0.68);
+}
+
+.rank--champion {
+  border-color: rgba(163, 58, 43, 0.42);
+}
+
+.rank__top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+.rank__rank {
+  flex: 0 0 auto;
+  font-size: 17px;
+  letter-spacing: 0.1em;
+  color: var(--dai);
+}
+
+.rank--r1 .rank__rank {
+  font-size: 21px;
+  color: var(--gold);
+}
+
+.rank__tier {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: rgba(255, 253, 246, 0.7);
+  white-space: nowrap;
+}
+
+.rank__fun {
+  font-family: var(--font-kai);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+  border: 1px dashed var(--gold-line);
+  border-radius: 6px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.rank__score {
+  margin-left: auto;
+  font-family: var(--font-kai);
+  font-size: 20px;
+  color: var(--ink);
+}
+
+.rank--r1 .rank__score {
+  color: var(--cinnabar);
+}
+
+.rank__mid {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 6px;
+}
+
+.rank__name {
+  min-width: 0;
+  font-size: 17px;
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.rank--r1 .rank__name {
+  font-size: 20px;
+}
+
+.rank__meta {
+  font-size: 12px;
+}
+
+.rank__prizes {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rank__prize {
+  font-size: 13px;
+  padding: 2px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: rgba(243, 233, 210, 0.7);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.rank__prize--none {
+  border-style: dashed;
+  color: var(--ink-faint);
+  background: transparent;
+}
+
+/* ---------- 本局数据 ---------- */
+
+.result-stats__grid {
+  margin: 10px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.result-stats__cell {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 245, 0.6);
+  min-width: 0;
+}
+
+.result-stats__label {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.result-stats__value {
+  margin: 2px 0 0;
+  font-family: var(--font-kai);
+  font-size: 17px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 再来一局 ---------- */
+
+.result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+
+.result-actions__btn {
+  font-size: 18px;
+  letter-spacing: 0.24em;
+  text-indent: 0.24em;
+  min-height: 52px;
+}
+
+.result-actions__wait {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+}
+
+.result-actions__note {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ---------- 兜底 ---------- */
+
+.result__fallback-text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+/* ---------- 窄屏微调 ---------- */
+
+@media (max-width: 375px) {
+  .rank__score {
+    font-size: 18px;
+  }
+
+  .result-stats__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .result-champ__dice {
+    gap: 6px;
+  }
+}

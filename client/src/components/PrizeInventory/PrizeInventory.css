@@ -1,0 +1,196 @@
+/* ==========================================================================
+   PrizeInventory —— 奖品库存
+   六行奖品：名称 + 金色细进度条 + 剩余 / 初始。状元行朱砂描边 + 金色底。
+   ========================================================================== */
+
+.inv {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.inv__head {
+  gap: 10px;
+}
+
+.inv__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inv__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255, 253, 246, 0.5);
+}
+
+/* 状元：全桌唯一，朱砂描边 + 金色底 */
+.inv__row--champion {
+  border-color: rgba(163, 58, 43, 0.5);
+  background: linear-gradient(
+    90deg,
+    rgba(232, 199, 122, 0.34),
+    rgba(177, 138, 85, 0.14) 72%,
+    rgba(255, 253, 246, 0.5)
+  );
+}
+
+/* 领完：整行压暗 */
+.inv__row--empty {
+  opacity: 0.5;
+}
+
+/* ---- 名称 ---------------------------------------------------------------- */
+
+.inv__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.inv__name {
+  font-size: 15px;
+  line-height: 1.25;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+}
+
+.inv__row--champion .inv__name {
+  color: var(--cinnabar);
+  font-weight: 600;
+}
+
+.inv__only {
+  padding: 0 5px;
+  border: 1px solid var(--gold-line);
+  border-radius: 999px;
+  background: rgba(232, 199, 122, 0.26);
+  color: #7d5c31;
+  font-size: 10.5px;
+  line-height: 16px;
+  letter-spacing: 0.06em;
+}
+
+/* ---- 进度条 -------------------------------------------------------------- */
+
+.inv__bar {
+  position: relative;
+  display: block;
+  min-width: 34px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(41, 37, 31, 0.09);
+  box-shadow: inset 0 0 0 1px rgba(41, 37, 31, 0.07);
+  overflow: hidden;
+}
+
+.inv__bar-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--gold-light), var(--gold));
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 0.45s var(--ease-soft);
+}
+
+.inv__row--champion .inv__bar-fill {
+  background: linear-gradient(90deg, #e8c77a, #8f6d3e);
+}
+
+/* 领完：底色与填充都转灰 */
+.inv__row--empty .inv__bar {
+  background: rgba(138, 133, 120, 0.2);
+}
+
+.inv__row--empty .inv__bar-fill {
+  background: linear-gradient(90deg, #c9c2b4, #9a9285);
+}
+
+/* ---- 余数 ---------------------------------------------------------------- */
+
+.inv__count {
+  min-width: 60px;
+  text-align: right;
+  font-size: 13.5px;
+  line-height: 1.2;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.inv__now {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.inv__row--champion .inv__now {
+  color: #6b4c22;
+}
+
+.inv__row--empty .inv__now {
+  color: var(--cinnabar);
+}
+
+.inv__sep,
+.inv__total {
+  color: var(--ink-faint);
+  font-weight: 400;
+}
+
+/* ---- 已领完的朱砂划线 ---------------------------------------------------- */
+
+.inv__strike {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 50%;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgba(163, 58, 43, 0.2),
+    rgba(163, 58, 43, 0.62) 45%,
+    rgba(163, 58, 43, 0.2)
+  );
+}
+
+/* ---- 手机端 -------------------------------------------------------------- */
+
+@media (max-width: 430px) {
+  .inv__row {
+    gap: 8px;
+    padding: 6px 9px;
+  }
+
+  .inv__name {
+    font-size: 14px;
+    letter-spacing: 0.06em;
+  }
+
+  .inv__only {
+    display: none;
+  }
+
+  .inv__bar {
+    min-width: 30px;
+  }
+
+  .inv__count {
+    min-width: 54px;
+    font-size: 12.5px;
+  }
+}

@@ -1,0 +1,174 @@
+/* ==========================================================================
+   ChampionFlash —— 「金榜易主」浮层
+   整层不吃点击事件，只做演出。
+   ========================================================================== */
+
+.championflash {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 8px) 12px 0;
+}
+
+.championflash__veil {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 76% 46% at 50% 46%,
+    rgba(41, 37, 31, 0.44),
+    rgba(41, 37, 31, 0.16) 62%,
+    rgba(41, 37, 31, 0) 84%
+  );
+}
+
+/* ---- 顶部金色横幅 ---- */
+
+.championflash__banner {
+  position: relative;
+  flex: 0 0 auto;
+  width: min(560px, 92vw);
+  padding: 9px 20px 11px;
+  border-radius: 999px;
+  border: 1px solid #7d5c31;
+  background: linear-gradient(180deg, #f0d79a, #d9b76f 46%, #a8823f);
+  box-shadow: 0 8px 26px rgba(41, 37, 31, 0.34), inset 0 1px 0 rgba(255, 252, 236, 0.75);
+  text-align: center;
+  will-change: transform;
+}
+
+.championflash__banner-text {
+  display: block;
+  font-family: var(--font-kai);
+  font-size: clamp(19px, 5.8vw, 26px);
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  color: #2b1d10;
+  text-shadow: 0 1px 0 rgba(255, 250, 232, 0.55);
+  white-space: nowrap;
+}
+
+/* ---- 中部：旧状元 → 新状元 ---- */
+
+.championflash__stage {
+  position: relative;
+  flex: 0 1 auto;
+  min-height: 0;
+  margin-top: clamp(30px, 13vh, 104px);
+  width: min(560px, 92vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.championflash__old {
+  max-width: 100%;
+  font-family: var(--font-kai);
+  font-size: clamp(18px, 5.4vw, 26px);
+  letter-spacing: 0.12em;
+  color: #ece2c8;
+  text-align: center;
+  overflow-wrap: anywhere;
+  text-shadow: 0 2px 10px rgba(20, 16, 12, 0.6);
+  will-change: transform, opacity;
+}
+
+.championflash__arrow {
+  width: clamp(34px, 10vw, 46px);
+  height: clamp(34px, 10vw, 46px);
+  margin: 2px 0 4px;
+  will-change: transform, opacity;
+}
+
+.championflash__new-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 12px 22px;
+  max-width: 100%;
+}
+
+.championflash__new {
+  max-width: 100%;
+  font-family: var(--font-kai);
+  font-size: clamp(25px, 7.6vw, 38px);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+  background: linear-gradient(180deg, #fbf0cd, #e8c77a 52%, #c39a5c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  will-change: transform, opacity;
+}
+
+.championflash__stamp {
+  position: absolute;
+  right: -4px;
+  bottom: 4px;
+  will-change: transform, opacity;
+}
+
+/* 大号朱砂印章（配合 theme.css 的 .seal） */
+.championflash__seal--lg {
+  min-width: 62px;
+  min-height: 62px;
+  padding: 6px 10px;
+  font-size: 20px;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  border-width: 2px;
+  border-radius: 8px;
+  background: rgba(163, 58, 43, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(163, 58, 43, 0.22), 0 6px 18px rgba(41, 37, 31, 0.28);
+}
+
+.championflash__caption {
+  margin-top: 2px;
+  font-family: var(--font-fang);
+  font-size: 13.5px;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  color: #e2d6b4;
+  will-change: opacity;
+}
+
+/* ---- 金色桂花粒子 ---- */
+
+.championflash__petal {
+  position: absolute;
+  top: 0;
+  border-radius: 62% 38% 58% 42%;
+  background: radial-gradient(circle at 36% 32%, #fbeec2, #e8c77a 58%, #b8925a);
+  box-shadow: 0 0 6px rgba(232, 199, 122, 0.5);
+  will-change: transform, opacity;
+}
+
+/* ---- 移动端 ---- */
+
+@media (max-width: 430px) {
+  .championflash__stage {
+    margin-top: clamp(26px, 11vh, 88px);
+  }
+  .championflash__new-wrap {
+    padding: 2px 8px 20px;
+  }
+  .championflash__seal--lg {
+    min-width: 54px;
+    min-height: 54px;
+    font-size: 18px;
+  }
+  .championflash__stamp {
+    right: -2px;
+    bottom: 2px;
+  }
+}

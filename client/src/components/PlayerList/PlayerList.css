@@ -1,0 +1,277 @@
+/* ==========================================================================
+   PlayerList —— 席间诸位
+   宴席名册：圆形席位牌 + 昵称 + 在线点 + 积分。当前回合用淡金底 + 朱砂竖线。
+   ========================================================================== */
+
+.plist {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.plist__head {
+  gap: 10px;
+}
+
+.plist__count {
+  flex: 0 0 auto;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 253, 246, 0.62);
+  color: var(--ink-faint);
+  font-size: 12px;
+  line-height: 20px;
+  letter-spacing: 0.06em;
+}
+
+/* ---- 名册 ---------------------------------------------------------------- */
+
+.plist__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0 2px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: clamp(200px, 38vh, 380px);
+}
+
+.plist__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 5px 9px 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: rgba(255, 253, 246, 0.46);
+  transition: opacity 0.3s var(--ease-soft);
+}
+
+/* 我自己的席位：极淡的黛青底 */
+.plist__row--me {
+  background: rgba(61, 89, 96, 0.07);
+}
+
+/* 轮到的席位：淡金底 + 左侧朱砂竖线 */
+.plist__row--turn {
+  border-color: rgba(177, 138, 85, 0.45);
+  background: linear-gradient(
+    90deg,
+    rgba(232, 199, 122, 0.34),
+    rgba(232, 199, 122, 0.09) 62%,
+    rgba(232, 199, 122, 0.02)
+  );
+}
+
+.plist__row--turn::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 7px;
+  bottom: 7px;
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--cinnabar-bright), var(--cinnabar));
+}
+
+.plist__row--offline {
+  opacity: 0.5;
+}
+
+/* ---- 席位牌 -------------------------------------------------------------- */
+
+.plist__seat {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 26%, #fffdf6, #efe4c8);
+  color: var(--ink-soft);
+  font-family: var(--font-kai);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.plist__seat-mark {
+  display: block;
+  transform: translateY(0.5px);
+}
+
+.plist__row--turn .plist__seat {
+  border-color: var(--gold);
+  color: #6f5024;
+  background: radial-gradient(circle at 34% 26%, #fdf3d8, #e6c98a);
+}
+
+/* 呼吸金环：只动 opacity / transform */
+.plist__seat-ring {
+  position: absolute;
+  inset: -5px;
+  border: 2px solid rgba(177, 138, 85, 0.6);
+  border-radius: 50%;
+  animation: seatBreath 2.6s var(--ease-soft) infinite;
+}
+
+@keyframes seatBreath {
+  0%,
+  100% {
+    opacity: 0.16;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 0.62;
+    transform: scale(1.05);
+  }
+}
+
+/* ---- 昵称与标记 ---------------------------------------------------------- */
+
+.plist__mid {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.plist__name {
+  font-size: 16px;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.plist__row--turn .plist__name {
+  color: #5c4423;
+}
+
+/* 席间的状元印比 .seal--sm 再小一号，故用两级选择器压过 theme.css 的基础样式 */
+.plist .plist__seal {
+  min-width: 26px;
+  min-height: 22px;
+  padding: 0 4px;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.plist__chase {
+  padding: 0 6px;
+  border: 1px dashed rgba(163, 58, 43, 0.5);
+  border-radius: 999px;
+  color: var(--cinnabar);
+  font-size: 11px;
+  line-height: 17px;
+  white-space: nowrap;
+}
+
+.plist__offline {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+/* ---- 右侧状态 ------------------------------------------------------------ */
+
+.plist__right {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.plist__score {
+  min-width: 34px;
+  text-align: right;
+  font-size: 15px;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.plist__unit {
+  margin-left: 2px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+/* ---- 底部提示 ------------------------------------------------------------ */
+
+.plist__hint {
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+  text-align: center;
+  font-size: 12.5px;
+  letter-spacing: 0.14em;
+  color: var(--ink-soft);
+}
+
+.plist__empty {
+  margin: 4px 0 2px;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+}
+
+/* ---- 紧凑模式（手机端） -------------------------------------------------- */
+
+.plist--compact {
+  gap: 7px;
+}
+
+.plist--compact .plist__rows {
+  gap: 3px;
+}
+
+.plist--compact .plist__row {
+  min-height: 40px;
+  gap: 8px;
+  padding: 3px 8px 3px 6px;
+}
+
+.plist--compact .plist__seat {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+}
+
+.plist--compact .plist__seat-ring {
+  inset: -4px;
+}
+
+.plist--compact .plist__mid {
+  gap: 5px;
+}
+
+.plist--compact .plist__name {
+  font-size: 14px;
+}
+
+.plist--compact .plist__seal {
+  min-width: 22px;
+  min-height: 19px;
+  padding: 0 3px;
+  font-size: 10px;
+}
+
+.plist--compact .plist__score {
+  min-width: 26px;
+  font-size: 13.5px;
+}
+
+.plist--compact .plist__count {
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.plist--compact .plist__hint {
+  font-size: 12px;
+}

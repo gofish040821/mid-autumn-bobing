@@ -1,0 +1,42 @@
+# Render Blueprint —— 一键部署到公网。
+#
+# 用它在 Render 上开一个 Web Service，任何人任何网络都能打开链接进桌。
+# 用法：把仓库推到 GitHub 后，在 Render 选 "New +" → "Blueprint" → 选这个仓库。
+#
+# 为什么部署只要一个服务：
+#   server/src/index.ts 里，Express 既托管 client/dist 静态页、又挂 Socket.IO，
+#   前后端本来就在同一个进程、同一个源上。所以不需要「前端一个域名 + 后端一个域名」，
+#   也不存在跨域问题——这是这个项目最容易部署的地方。
+
+services:
+  - type: web
+    name: mid-autumn-bobing
+    runtime: node
+    plan: free
+    # 新加坡离国内最近；换成 oregon / ohio / virginia / frankfurt 也行。
+    region: singapore
+
+    # --include=dev 是必须的：vite 在 client 的 devDependencies 里，
+    # 不加这个参数、万一平台把 NODE_ENV 设成了 production，构建会直接失败。
+    buildCommand: npm install --include=dev && npm run build
+
+    # tsx src/index.ts —— 服务端直接跑 TypeScript 源码，
+    # 所以 tsx 放在 dependencies 而不是 devDependencies（见 server/package.json）。
+    startCommand: npm start
+
+    # 已有的 /api/health，返回 { ok, phase, players, ... }
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+
+    # 注意（免费档的真实限制，不是配置问题）：
+    #   1. 15 分钟没有入站流量就会休眠，下次访问冷启动约 1 分钟。
+    #   2. 房间状态是纯内存的（server/src/game/GameEngine.ts），
+    #      一旦休眠/重新部署，当前的牌局就没了。
+    #      玩的时候每 30 秒有人掷骰，有流量就不会休眠；中途长时间停手则可能丢局。
+    #   3. 玩家掉线重连本身是有兜底的（guestId + sessionToken + ABANDON_GRACE_MS），
+    #      短暂断线不会掉出座位。
+    #
+    # 想避免休眠就升到付费档，或者干脆用自己电脑 + 内网穿透/局域网。

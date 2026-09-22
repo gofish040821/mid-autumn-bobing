@@ -1,0 +1,612 @@
+/* ==========================================================================
+   月满中秋 · 博饼 —— 设计系统
+   中国传统工笔画 + 中秋 + 文人雅集。所有视觉 token 都在这里。
+   ========================================================================== */
+
+:root {
+  /* ---- 主色（题目指定） ---- */
+  --paper: #f3e9d2;
+  --paper-soft: #f7f0de;
+  --paper-deep: #e8dbbc;
+  --ink: #29251f;
+  --ink-soft: #5a5348;
+  --ink-faint: #8a8578;
+  --cinnabar: #a33a2b;
+  --cinnabar-bright: #c0392b;
+  --gold: #b18a55;
+  --gold-light: #e8c77a;
+  --dai: #3d5960;
+
+  /* ---- 派生 ---- */
+  --line: rgba(41, 37, 31, 0.16);
+  --line-strong: rgba(41, 37, 31, 0.34);
+  --gold-line: rgba(177, 138, 85, 0.55);
+  --shadow-soft: 0 2px 10px rgba(41, 37, 31, 0.08);
+  --shadow-card: 0 6px 26px rgba(41, 37, 31, 0.13), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  --shadow-deep: 0 14px 44px rgba(41, 37, 31, 0.24);
+
+  /* ---- 尺寸 ---- */
+  --radius: 10px;
+  --radius-lg: 16px;
+  --tap: 44px;
+
+  /* ---- 字体：优先楷/宋/仿宋，任何系统都有 fallback ---- */
+  --font-kai: "Kaiti SC", "KaiTi", "STKaiti", "楷体", "Kaiti", "AR PL UKai CN", serif;
+  --font-song: "Songti SC", "SimSun", "STSong", "宋体", "Noto Serif CJK SC", "Source Han Serif SC",
+    serif;
+  --font-fang: "FangSong", "STFangsong", "仿宋", "FangSong_GB2312", serif;
+  --font-ui: var(--font-song);
+
+  /* ---- 动效 ---- */
+  --ease-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-ink: cubic-bezier(0.34, 1.26, 0.64, 1);
+
+  color-scheme: light;
+}
+
+/* ==========================================================================
+   基础重置
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.65;
+  background-color: var(--paper);
+  /* 宣纸底纹：多层柔和渐变 + 纸纹噪点 */
+  background-image:
+    radial-gradient(circle at 18% 12%, rgba(255, 252, 240, 0.85), transparent 42%),
+    radial-gradient(circle at 82% 8%, rgba(232, 199, 122, 0.18), transparent 46%),
+    radial-gradient(circle at 50% 108%, rgba(61, 89, 96, 0.12), transparent 55%),
+    linear-gradient(160deg, #f6efdd 0%, #f3e9d2 38%, #ece0c4 100%);
+  background-attachment: fixed;
+  overflow-x: hidden;
+}
+
+/* 纸纹颗粒：一层极淡的噪点，撑起「宣纸」的手感 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='4' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='180' height='180' filter='url(%23n)' opacity='0.09'/></svg>");
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-kai);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* iOS 上 16px 以下会触发缩放 */
+input,
+textarea,
+select,
+button {
+  font-size: 16px;
+}
+
+/* ==========================================================================
+   排版工具
+   ========================================================================== */
+
+.t-kai {
+  font-family: var(--font-kai);
+}
+.t-song {
+  font-family: var(--font-song);
+}
+.t-fang {
+  font-family: var(--font-fang);
+}
+
+.t-vertical {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 0.28em;
+}
+
+.t-title {
+  font-family: var(--font-kai);
+  font-size: clamp(26px, 7vw, 44px);
+  letter-spacing: 0.14em;
+  color: var(--ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.t-sub {
+  font-family: var(--font-fang);
+  color: var(--ink-soft);
+  letter-spacing: 0.22em;
+  font-size: clamp(13px, 3.6vw, 17px);
+}
+
+.t-muted {
+  color: var(--ink-faint);
+}
+.t-cinnabar {
+  color: var(--cinnabar);
+}
+.t-gold {
+  color: var(--gold);
+}
+.t-dai {
+  color: var(--dai);
+}
+
+.t-center {
+  text-align: center;
+}
+
+.t-nums {
+  font-family: var(--font-song);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   布局
+   ========================================================================== */
+
+.app-root {
+  position: relative;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.page {
+  min-height: 100%;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 16px 14px calc(28px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.wrap {
+  flex-wrap: wrap;
+}
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ==========================================================================
+   卷轴卡片
+   ========================================================================== */
+
+.scroll {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 245, 0.92), rgba(243, 233, 210, 0.86));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 16px 16px 18px;
+}
+
+/* 左右两根卷轴轴杆 */
+.scroll--rod::before,
+.scroll--rod::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 7px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #8d6a3c, #d8b878 45%, #7d5c31);
+  box-shadow: 0 1px 4px rgba(41, 37, 31, 0.35);
+}
+.scroll--rod::before {
+  left: -4px;
+}
+.scroll--rod::after {
+  right: -4px;
+}
+
+.scroll--plain {
+  padding: 14px;
+}
+
+.panel {
+  background: rgba(255, 253, 245, 0.72);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.panel--tight {
+  padding: 9px 11px;
+}
+
+/* 细金线分隔 */
+.hairline {
+  height: 1px;
+  border: 0;
+  margin: 10px 0;
+  background: linear-gradient(90deg, transparent, var(--gold-line), transparent);
+}
+
+.section-label {
+  font-family: var(--font-kai);
+  font-size: 15px;
+  letter-spacing: 0.2em;
+  color: var(--dai);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-label::before,
+.section-label::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, transparent, var(--gold-line), transparent);
+}
+
+/* ==========================================================================
+   按钮
+   ========================================================================== */
+
+.btn {
+  appearance: none;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(180deg, #fffdf6, #f0e6cd);
+  color: var(--ink);
+  border-radius: var(--radius);
+  min-height: var(--tap);
+  padding: 10px 18px;
+  font-family: var(--font-kai);
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  transition: transform 0.14s var(--ease-soft), box-shadow 0.18s var(--ease-soft),
+    filter 0.18s var(--ease-soft);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, var(--shadow-soft);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(41, 37, 31, 0.14);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.99);
+}
+
+.btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+
+.btn--sm {
+  /* 40px 是触屏点击靶的下限；再小就会在手机上点不准 */
+  min-height: 40px;
+  padding: 5px 12px;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn--primary {
+  background: linear-gradient(180deg, #b8452f, var(--cinnabar) 55%, #8c2f22);
+  color: #fdf6e6;
+  border-color: #7d2a1e;
+  box-shadow: 0 2px 0 rgba(255, 255, 255, 0.18) inset, 0 6px 20px rgba(163, 58, 43, 0.32);
+}
+.btn--primary:hover:not(:disabled) {
+  box-shadow: 0 8px 26px rgba(163, 58, 43, 0.42);
+}
+
+.btn--gold {
+  background: linear-gradient(180deg, #e6c98a, var(--gold) 60%, #8f6d3e);
+  color: #2b2417;
+  border-color: #7d5c31;
+}
+
+.btn--ghost {
+  background: rgba(255, 253, 246, 0.5);
+  border-color: var(--line);
+}
+
+/* 最大的「博饼」按钮 */
+.btn-roll {
+  --size: clamp(112px, 34vw, 156px);
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  border: 2px solid #7d2a1e;
+  background:
+    radial-gradient(circle at 34% 28%, #d4604a, transparent 58%),
+    linear-gradient(170deg, #b8452f, var(--cinnabar) 52%, #7e2a1d);
+  color: #fdf3df;
+  font-family: var(--font-kai);
+  font-size: clamp(20px, 6.2vw, 27px);
+  letter-spacing: 0.24em;
+  text-indent: 0.24em;
+  box-shadow: 0 10px 30px rgba(163, 58, 43, 0.36), 0 0 0 6px rgba(163, 58, 43, 0.09),
+    0 2px 0 rgba(255, 255, 255, 0.22) inset;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease-ink), box-shadow 0.2s var(--ease-soft);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.btn-roll:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.55) brightness(0.94);
+  opacity: 0.55;
+  box-shadow: none;
+}
+.btn-roll--live {
+  animation: moonPulse 2.4s var(--ease-soft) infinite;
+}
+.btn-roll--live:active {
+  transform: scale(0.95);
+}
+
+@keyframes moonPulse {
+  0%,
+  100% {
+    box-shadow: 0 10px 30px rgba(163, 58, 43, 0.36), 0 0 0 6px rgba(163, 58, 43, 0.09),
+      0 2px 0 rgba(255, 255, 255, 0.22) inset;
+  }
+  50% {
+    box-shadow: 0 12px 36px rgba(163, 58, 43, 0.5), 0 0 0 12px rgba(163, 58, 43, 0.06),
+      0 2px 0 rgba(255, 255, 255, 0.22) inset;
+  }
+}
+
+/* ==========================================================================
+   朱砂印章
+   ========================================================================== */
+
+.seal {
+  --seal: var(--cinnabar);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px 7px;
+  border: 2px solid var(--seal);
+  border-radius: 6px;
+  color: var(--seal);
+  font-family: var(--font-kai);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.05;
+  background: rgba(163, 58, 43, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(163, 58, 43, 0.14);
+  text-align: center;
+}
+.seal--sm {
+  min-width: 30px;
+  min-height: 30px;
+  font-size: 12px;
+  border-width: 1px;
+  padding: 2px 5px;
+}
+.seal--gold {
+  --seal: var(--gold);
+  background: rgba(177, 138, 85, 0.09);
+  box-shadow: inset 0 0 0 1px rgba(177, 138, 85, 0.18);
+}
+
+/* ==========================================================================
+   状态点
+   ========================================================================== */
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--ink-faint);
+}
+.dot--on {
+  background: #5c8a52;
+  box-shadow: 0 0 0 3px rgba(92, 138, 82, 0.16);
+}
+.dot--off {
+  background: #9a9285;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  background: rgba(255, 253, 246, 0.7);
+  white-space: nowrap;
+}
+.badge--host {
+  border-color: var(--gold-line);
+  color: #7d5c31;
+  background: rgba(232, 199, 122, 0.24);
+}
+.badge--champion {
+  border-color: rgba(163, 58, 43, 0.4);
+  color: var(--cinnabar);
+  background: rgba(163, 58, 43, 0.1);
+}
+.badge--me {
+  border-color: rgba(61, 89, 96, 0.4);
+  color: var(--dai);
+  background: rgba(61, 89, 96, 0.09);
+}
+
+/* ==========================================================================
+   滚动条（桌面端）
+   ========================================================================== */
+
+.scroll-y {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(177, 138, 85, 0.55) transparent;
+}
+.scroll-y::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+.scroll-y::-webkit-scrollbar-thumb {
+  background: rgba(177, 138, 85, 0.5);
+  border-radius: 4px;
+}
+.scroll-y::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ==========================================================================
+   通用动画
+   ========================================================================== */
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.fade-up {
+  animation: fadeUp 0.42s var(--ease-soft) both;
+}
+
+@keyframes inkSpread {
+  from {
+    opacity: 0.55;
+    transform: scale(0.72);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px
+  ;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==========================================================================
+   响应式
+   ========================================================================== */
+
+@media (max-width: 430px) {
+  .page {
+    padding: 12px 10px calc(24px + env(safe-area-inset-bottom));
+    gap: 11px;
+  }
+  .scroll {
+    padding: 13px 12px 15px;
+    border-radius: 13px;
+  }
+}
+
+@media (max-width: 375px) {
+  body {
+    font-size: 15px;
+  }
+  .page {
+    padding: 10px 8px calc(22px + env(safe-area-inset-bottom));
+  }
+}
+
+/* 减少动画偏好：只保留必要的淡入淡出 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.06s !important;
+  }
+}
+
+/* 用户手动开启「减少动画」 */
+:root[data-reduced-motion="true"] *,
+:root[data-reduced-motion="true"] *::before,
+:root[data-reduced-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.06s !important;
+}

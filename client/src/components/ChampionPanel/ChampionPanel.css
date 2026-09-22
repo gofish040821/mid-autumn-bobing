@@ -1,0 +1,270 @@
+/* 追状元面板：黄榜 + 云纹 + 金线 */
+
+.cp {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 12px 13px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 50% -20%, rgba(232, 199, 122, 0.28), transparent 62%),
+    linear-gradient(180deg, rgba(255, 253, 245, 0.9), rgba(243, 233, 210, 0.82));
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.cp--idle {
+  opacity: 0.86;
+}
+
+.cp--active {
+  border-color: var(--gold-line);
+  box-shadow: var(--shadow-card), 0 0 0 1px rgba(232, 199, 122, 0.28) inset;
+}
+
+/* ---- 金色横幅 ---- */
+
+.cp__banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 5px 4px 7px;
+  border-radius: var(--radius);
+  color: var(--gold);
+  background: linear-gradient(
+    90deg,
+    rgba(177, 138, 85, 0) 0%,
+    rgba(232, 199, 122, 0.32) 22%,
+    rgba(232, 199, 122, 0.42) 50%,
+    rgba(232, 199, 122, 0.32) 78%,
+    rgba(177, 138, 85, 0) 100%
+  );
+}
+
+.cp__bannerText {
+  margin: 0;
+  font-size: clamp(17px, 5vw, 21px);
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+  color: #7d5c31;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.cp--active .cp__bannerText {
+  color: var(--cinnabar);
+}
+
+.cp__cloud {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 17px;
+  color: var(--gold);
+  opacity: 0.75;
+}
+
+.cp__cloud--flip {
+  transform: scaleX(-1);
+}
+
+/* ---- 当前状元 ---- */
+
+.cp__seat {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255, 253, 245, 0.86), rgba(232, 199, 122, 0.14));
+}
+
+.cp__seatHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.cp__seatNick {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cp__seatAward {
+  flex: 0 0 auto;
+  font-family: var(--font-kai);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: rgba(255, 253, 245, 0.7);
+  white-space: nowrap;
+}
+
+.cp__dice {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.cp__seatMeta {
+  font-size: 12px;
+}
+
+.cp__empty {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.cp__emptyDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--paper-deep);
+  box-shadow: 0 0 0 3px rgba(138, 133, 120, 0.12);
+}
+
+/* ---- 追榜细节 ---- */
+
+.cp__body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+
+.cp__block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cp__label {
+  font-size: 12.5px;
+  letter-spacing: 0.16em;
+  color: var(--dai);
+}
+
+.cp__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cp__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 3px 10px 3px 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 253, 245, 0.78);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.cp__pillAvatar {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(160deg, var(--paper-deep), #dcc9a2);
+  color: #5f5236;
+  font-family: var(--font-kai);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.cp__pillName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cp__done {
+  margin: 0;
+  font-family: var(--font-kai);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+}
+
+.cp__count {
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.cp__track {
+  position: relative;
+  height: 6px;
+  width: 100%;
+  border-radius: 999px;
+  background: rgba(41, 37, 31, 0.1);
+  overflow: hidden;
+}
+
+.cp__fill {
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-light));
+  transition: transform 0.5s var(--ease-soft);
+}
+
+.cp__replace {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.cp__note,
+.cp__idleNote {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.cp__idleNote {
+  color: var(--ink-faint);
+}
+
+@media (max-width: 375px) {
+  .cp {
+    padding: 10px 10px 11px;
+  }
+  .cp__cloud {
+    width: 30px;
+  }
+  .cp__pill {
+    font-size: 12px;
+  }
+}

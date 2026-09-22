@@ -1,0 +1,113 @@
+/**
+ * Socket.IO 事件契约（双向强类型）。
+ *
+ * 设计原则：
+ *  - 客户端只能表达「意图」（我要博饼 / 我要开始），永远不提交 dice / award / score / inventory。
+ *  - 服务端所有广播都携带完整 GameSnapshot，任何一次丢包都能被下一次广播自愈。
+ */
+import type {
+  Ack,
+  GameSnapshot,
+  JoinResult,
+  PlayerState,
+  RollAck,
+  RollRecord,
+} from './types.js';
+
+/* ------------------------------------------------------------------ *
+ * Payloads
+ * ------------------------------------------------------------------ */
+
+export interface JoinPayload {
+  guestId: string;
+  /** 断线重连时携带；首次加入为 null */
+  sessionToken?: string | null;
+  nickname: string;
+}
+
+export interface SyncPayload {
+  sessionToken: string;
+}
+
+export interface SetNicknamePayload {
+  nickname: string;
+}
+
+export interface RollPayload {
+  /** 服务端下发的回合 id，形如 turn_000023 */
+  turnId: string;
+  /** 客户端生成的一次性动作 id，用于幂等与双击保护 */
+  actionId: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Event maps
+ * ------------------------------------------------------------------ */
+
+export interface ClientToServerEvents {
+  'room:join': (payload: JoinPayload, ack: (res: Ack<JoinResult>) => void) => void;
+  'room:sync': (payload: SyncPayload, ack: (res: Ack<GameSnapshot>) => void) => void;
+  'player:setNickname': (payload: SetNicknamePayload, ack: (res: Ack<PlayerState>) => void) => void;
+  'game:start': (payload: undefined, ack: (res: Ack<GameSnapshot>) => void) => void;
+  'game:roll': (payload: RollPayload, ack: (res: Ack<RollAck>) => void) => void;
+  'game:restart': (payload: undefined, ack: (res: Ack<GameSnapshot>) => void) => void;
+}
+
+export interface ServerToClientEvents {
+  'room:snapshot': (payload: { snapshot: GameSnapshot }) => void;
+  'room:playerJoined': (payload: { snapshot: GameSnapshot; player: PlayerState }) => void;
+  'room:playerLeft': (payload: { snapshot: GameSnapshot; playerId: string }) => void;
+  'room:playerDisconnected': (payload: { snapshot: GameSnapshot; playerId: string }) => void;
+  'room:playerReconnected': (payload: { snapshot: GameSnapshot; playerId: string }) => void;
+  'game:started': (payload: { snapshot: GameSnapshot }) => void;
+  'turn:changed': (payload: { snapshot: GameSnapshot }) => void;
+  'roll:started': (payload: {
+    snapshot: GameSnapshot;
+    turnId: string;
+    playerId: string;
+    seat: number;
+    auto: boolean;
+  }) => void;
+  'roll:result': (payload: { snapshot: GameSnapshot; roll: RollRecord }) => void;
+  'inventory:updated': (payload: { snapshot: GameSnapshot }) => void;
+  'score:updated': (payload: { snapshot: GameSnapshot }) => void;
+  'champion:started': (payload: { snapshot: GameSnapshot }) => void;
+  'champion:updated': (payload: {
+    snapshot: GameSnapshot;
+    replaced: boolean;
+    previousNickname: string | null;
+  }) => void;
+  'champion:queueUpdated': (payload: { snapshot: GameSnapshot }) => void;
+  'game:finished': (payload: { snapshot: GameSnapshot }) => void;
+}
+
+export interface InterServerEvents {
+  ping: () => void;
+}
+
+export interface SocketData {
+  playerId?: string;
+  roomId?: string;
+}
+
+/** 服务端到客户端的全部事件名，供客户端做类型安全的 on()。 */
+export const SERVER_EVENTS: readonly (keyof ServerToClientEvents)[] = [
+  'room:snapshot',
+  'room:playerJoined',
+  'room:playerLeft',
+  'room:playerDisconnected',
+  'room:playerReconnected',
+  'game:started',
+  'turn:changed',
+  'roll:started',
+  'roll:result',
+  'inventory:updated',
+  'score:updated',
+  'champion:started',
+  'champion:updated',
+  'champion:queueUpdated',
+  'game:finished',
+] as const;
+
+/** 房间 id —— 第一版只有一桌。 */
+export const MAIN_ROOM_ID = 'MAIN_ROOM';

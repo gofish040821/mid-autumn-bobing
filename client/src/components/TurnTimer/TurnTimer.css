@@ -1,0 +1,107 @@
+/* 回合倒计时：一只安静的环 */
+
+.tt {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tt__ringWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+}
+
+.tt__ring {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.tt__track {
+  fill: none;
+  stroke: rgba(41, 37, 31, 0.12);
+  stroke-width: 4;
+}
+
+.tt__arc {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.25s linear, stroke 0.6s var(--ease-soft);
+}
+
+.tt--mine .tt__arc {
+  stroke-width: 5;
+}
+
+.tt__num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.tt--calm .tt__num {
+  color: var(--ink-faint);
+  font-size: 20px;
+}
+
+.tt__unit {
+  font-style: normal;
+  font-size: 10px;
+  margin-left: 1px;
+  transform: translateY(3px);
+  color: var(--ink-faint);
+}
+
+.tt__caption {
+  font-family: var(--font-fang);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.tt__caption--mine {
+  color: var(--cinnabar);
+  letter-spacing: 0.14em;
+}
+
+/* 我的回合：环更亮一点，只用 opacity/transform，不闪烁 */
+.tt--mine .tt__ring {
+  animation: ttBreathe 3.2s var(--ease-soft) infinite;
+}
+
+@keyframes ttBreathe {
+  0%,
+  100% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+}
+
+@media (max-width: 375px) {
+  .tt__ringWrap {
+    width: 60px;
+    height: 60px;
+  }
+  .tt__num {
+    font-size: 20px;
+  }
+}

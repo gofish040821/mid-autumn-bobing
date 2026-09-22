@@ -1,0 +1,121 @@
+/* 雅集纪事：卷轴式日志，新条目在上 */
+
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.log__box {
+  position: relative;
+  min-width: 0;
+  padding: 8px 10px 8px 9px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--gold-line);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255, 253, 245, 0.78), rgba(243, 233, 210, 0.6));
+  box-shadow: 0 1px 6px rgba(41, 37, 31, 0.05) inset;
+}
+
+.log__empty {
+  margin: 0;
+  padding: 14px 2px;
+  text-align: center;
+  font-size: 13.5px;
+  letter-spacing: 0.14em;
+}
+
+.log__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.log__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 3px 2px 3px 6px;
+  border-left: 2px solid transparent;
+  font-size: 14px;
+  line-height: 1.6;
+  animation: logIn 0.32s var(--ease-soft) both;
+}
+
+.log__time {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+
+.log__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.log__seal {
+  flex: 0 0 auto;
+  transform: translateY(2px) scale(0.82);
+  transform-origin: right baseline;
+}
+
+/* ---- tone ---- */
+
+.log__item--normal .log__text {
+  color: var(--ink);
+}
+
+.log__item--win .log__text {
+  color: var(--dai);
+}
+
+.log__item--champion {
+  padding-left: 8px;
+  border-left-color: var(--gold);
+  background: linear-gradient(90deg, rgba(232, 199, 122, 0.2), transparent 72%);
+}
+
+.log__item--champion .log__text {
+  color: var(--cinnabar);
+  font-weight: 600;
+}
+
+.log__item--system .log__text {
+  color: var(--ink-faint);
+  font-style: italic;
+  font-size: 13px;
+}
+
+.log__item--warn .log__text {
+  color: #8a6a34;
+}
+
+@keyframes logIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 375px) {
+  .log__item {
+    font-size: 13px;
+    gap: 6px;
+  }
+  .log__time {
+    font-size: 11px;
+  }
+}

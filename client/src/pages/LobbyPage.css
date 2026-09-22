@@ -1,0 +1,422 @@
+/* ==========================================================================
+   LobbyPage —— 入席页
+   两种状态：入席卷轴 / 圆桌候席。桌面端画圆桌，窄屏降级为名单。
+   ========================================================================== */
+
+.lobby-page {
+  gap: 14px;
+  padding-bottom: calc(28px + env(safe-area-inset-bottom));
+}
+
+/* ==========================================================================
+   A) 入席卷轴
+   ========================================================================== */
+
+.lobby-join {
+  width: 100%;
+  max-width: 460px;
+  margin: clamp(10px, 7vh, 64px) auto 0;
+  padding: 20px 18px 22px;
+}
+
+.lobby-join__title {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(22px, 6.4vw, 28px);
+  letter-spacing: 0.32em;
+  text-indent: 0.32em;
+  color: var(--ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 16px rgba(232, 199, 122, 0.45);
+}
+
+.lobby-join__lede {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+
+.lobby-join__form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.lobby-join__label {
+  font-size: 14px;
+  letter-spacing: 0.22em;
+  color: var(--dai);
+}
+
+.lobby-join__field {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.lobby-join__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 48px;
+  padding: 10px 12px;
+  font-family: var(--font-kai);
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  background: rgba(255, 253, 246, 0.92);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color 0.18s var(--ease-soft), box-shadow 0.18s var(--ease-soft);
+}
+
+.lobby-join__input::placeholder {
+  font-family: var(--font-song);
+  letter-spacing: 0;
+  color: var(--ink-faint);
+}
+
+.lobby-join__input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(177, 138, 85, 0.2);
+}
+
+.lobby-join__random {
+  flex: 0 0 auto;
+  min-height: 48px;
+  white-space: nowrap;
+  letter-spacing: 0.1em;
+}
+
+.lobby-join__submit {
+  min-height: 50px;
+  margin-top: 3px;
+  font-size: clamp(16px, 4.5vw, 18px);
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+  white-space: nowrap;
+}
+
+.lobby-join__error {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--cinnabar);
+}
+
+.lobby-join__hint {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink-faint);
+}
+
+.lobby-loading {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 14px;
+}
+
+/* ==========================================================================
+   B) 候席
+   ========================================================================== */
+
+.lobby-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.lobby-head__title {
+  margin: 0;
+  font-size: clamp(20px, 5.8vw, 28px);
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75), 0 0 18px rgba(232, 199, 122, 0.42);
+}
+
+.lobby-head__count {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+.lobby-head__count strong {
+  font-size: 18px;
+  color: var(--cinnabar);
+  padding: 0 2px;
+}
+
+/* ---------- 圆桌 ---------- */
+
+.lobby-round {
+  width: 100%;
+  max-width: 560px;
+  margin: 2px auto 0;
+  /* 给四周名牌留出空间，避免贴边溢出 */
+  padding: clamp(54px, 12vw, 66px);
+}
+
+.lobby-round__orbit {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+/* 木质桌沿 */
+.lobby-round__rim {
+  position: absolute;
+  inset: 3%;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(
+      from 0deg,
+      rgba(90, 65, 35, 0.1) 0deg 3deg,
+      rgba(255, 244, 216, 0.06) 3deg 7deg
+    ),
+    radial-gradient(circle at 38% 28%, #e2c68d, #b18a55 58%, #8a6636 100%);
+  box-shadow: var(--shadow-card);
+}
+
+/* 宣纸桌面 */
+.lobby-round__felt {
+  position: absolute;
+  inset: 13%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border-radius: 50%;
+  border: 1px solid var(--gold-line);
+  background:
+    radial-gradient(circle at 42% 32%, #fdf9ec, #f2e7ce 62%, #e4d5b1 100%);
+  box-shadow: inset 0 2px 14px rgba(41, 37, 31, 0.12);
+}
+
+.lobby-round__moon {
+  font-size: clamp(26px, 5vw, 36px);
+  line-height: 1.1;
+  color: var(--gold);
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
+  text-shadow: 0 0 18px rgba(232, 199, 122, 0.6);
+}
+
+.lobby-round__count {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+/* ---------- 名牌 ---------- */
+
+.lobby-seat-slot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+}
+
+.lobby-seat {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 84px;
+  max-width: 106px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255, 253, 246, 0.96), rgba(243, 233, 210, 0.9));
+  box-shadow: var(--shadow-soft);
+}
+
+.lobby-seat--me {
+  border-color: var(--cinnabar);
+  background: linear-gradient(180deg, rgba(255, 250, 244, 0.98), rgba(240, 219, 211, 0.92));
+  box-shadow: 0 0 0 2px rgba(163, 58, 43, 0.14), var(--shadow-soft);
+}
+
+.lobby-seat--offline {
+  opacity: 0.6;
+}
+
+.lobby-seat__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
+  line-height: 1;
+  color: #7d5c31;
+  border: 1px solid var(--gold-line);
+  border-radius: 50%;
+  background: rgba(232, 199, 122, 0.34);
+}
+
+.lobby-seat__info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.lobby-seat__name {
+  max-width: 76px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+.lobby-seat__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+
+.lobby-seat__tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 4px;
+  border: 1px solid var(--gold-line);
+  color: #7d5c31;
+  background: rgba(232, 199, 122, 0.26);
+}
+
+.lobby-seat__tag--me {
+  border-color: rgba(61, 89, 96, 0.4);
+  color: var(--dai);
+  background: rgba(61, 89, 96, 0.1);
+}
+
+/* ---------- 状态与开席 ---------- */
+
+.lobby-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  text-align: center;
+  padding: 14px;
+}
+
+.lobby-status__text {
+  margin: 0;
+  font-size: clamp(14px, 4vw, 16px);
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+.lobby-status__auto {
+  margin: 0;
+  font-size: 15px;
+  color: var(--cinnabar);
+}
+
+.lobby-status__auto-num {
+  font-size: 21px;
+  font-weight: 700;
+  padding: 0 2px;
+}
+
+.lobby-status__actions {
+  width: 100%;
+}
+
+.lobby-start {
+  min-height: 50px;
+  font-size: clamp(16px, 4.5vw, 18px);
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+}
+
+.lobby-status__wait {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+
+.lobby-status__foot {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-faint);
+}
+
+/* ---------- 改名 ---------- */
+
+.lobby-rename__idle {
+  gap: 8px;
+}
+
+.lobby-rename__label {
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.lobby-rename__form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lobby-rename__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  padding: 7px 10px;
+  font-family: var(--font-kai);
+  font-size: 15px;
+  color: var(--ink);
+  background: rgba(255, 253, 246, 0.92);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color 0.18s var(--ease-soft), box-shadow 0.18s var(--ease-soft);
+}
+
+.lobby-rename__input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(177, 138, 85, 0.18);
+}
+
+.lobby-rename__input::placeholder {
+  font-family: var(--font-song);
+  color: var(--ink-faint);
+}
+
+@media (max-width: 430px) {
+  .lobby-join {
+    margin-top: clamp(8px, 4vh, 32px);
+    padding: 17px 14px 19px;
+  }
+
+  .lobby-join__field {
+    gap: 7px;
+  }
+
+  .lobby-round {
+    padding: clamp(50px, 15vw, 58px);
+  }
+}

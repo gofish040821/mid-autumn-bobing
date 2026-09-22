@@ -1,0 +1,501 @@
+/* ==========================================================================
+   RuleModal —— 规则卷轴
+   ========================================================================== */
+
+.rulemodal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 6px
+    calc(env(safe-area-inset-bottom, 0px) + 10px);
+  overflow: hidden;
+}
+
+/* 遮罩：点击关闭 */
+.rulemodal__veil {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+      ellipse 78% 62% at 50% 44%,
+      rgba(41, 37, 31, 0.3),
+      rgba(41, 37, 31, 0.56) 72%
+    ),
+    rgba(30, 26, 20, 0.26);
+  cursor: pointer;
+}
+
+/* 舞台：与卷轴同宽，承载绝对定位的关闭按钮 */
+.rulemodal__stage {
+  position: relative;
+  width: min(680px, 94vw);
+  max-height: 96vh;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.rulemodal__close {
+  position: absolute;
+  top: 22px;
+  right: 4px;
+  z-index: 3;
+  width: var(--tap);
+  height: var(--tap);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 246, 0.86);
+  color: var(--ink-soft);
+  font-family: var(--font-song);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.16s var(--ease-soft), transform 0.22s var(--ease-soft);
+}
+.rulemodal__close:hover {
+  color: var(--cinnabar);
+  transform: rotate(90deg);
+}
+
+/* ---- 卷轴本体：从中间向上下展开 ---- */
+
+.rulemodal__scroll {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.rulemodal__rod {
+  position: relative;
+  flex: 0 0 auto;
+  height: 16px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #e4c68c, #b18a55 44%, #7d5c31);
+  box-shadow: 0 2px 9px rgba(41, 37, 31, 0.3), inset 0 1px 0 rgba(255, 246, 220, 0.72);
+}
+.rulemodal__rod::before,
+.rulemodal__rod::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  width: 10px;
+  height: 24px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #6b4d28, #dcbd7e 50%, #6b4d28);
+  box-shadow: 0 2px 6px rgba(41, 37, 31, 0.34);
+}
+.rulemodal__rod::before {
+  left: -6px;
+}
+.rulemodal__rod::after {
+  right: -6px;
+}
+.rulemodal__rod--top {
+  box-shadow: 0 3px 10px rgba(41, 37, 31, 0.34), inset 0 1px 0 rgba(255, 246, 220, 0.75);
+}
+.rulemodal__rod--bottom {
+  box-shadow: 0 -3px 10px rgba(41, 37, 31, 0.26), inset 0 1px 0 rgba(255, 246, 220, 0.65);
+}
+
+.rulemodal__paper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 78vh;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 253, 245, 0.97),
+    rgba(247, 240, 222, 0.97) 34%,
+    rgba(240, 229, 203, 0.97)
+  );
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  box-shadow: var(--shadow-deep), inset 0 12px 20px -14px rgba(41, 37, 31, 0.4),
+    inset 0 -12px 20px -14px rgba(41, 37, 31, 0.4);
+  pointer-events: auto;
+}
+
+.rulemodal__fade {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.rulemodal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 78vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px clamp(14px, 4.4vw, 28px) 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(177, 138, 85, 0.55) transparent;
+}
+.rulemodal__body::-webkit-scrollbar {
+  width: 7px;
+}
+.rulemodal__body::-webkit-scrollbar-thumb {
+  background: rgba(177, 138, 85, 0.5);
+  border-radius: 4px;
+}
+
+.rulemodal__footer {
+  flex: 0 0 auto;
+  padding: 10px clamp(14px, 4.4vw, 28px) 16px;
+  background: linear-gradient(180deg, rgba(243, 233, 210, 0), rgba(232, 219, 188, 0.8));
+  border-top: 1px solid var(--line);
+}
+
+/* ---- 内容 ---- */
+
+.rulemodal__head {
+  text-align: center;
+  padding: 0 46px 2px;
+}
+
+.rulemodal__title {
+  font-family: var(--font-kai);
+  font-size: clamp(21px, 5.6vw, 27px);
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  color: var(--ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.rulemodal__subtitle {
+  margin: 2px 0 0;
+  font-family: var(--font-fang);
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+  color: var(--ink-faint);
+}
+
+.rulemodal__text {
+  margin: 9px 0 0;
+  font-size: 14.5px;
+  line-height: 1.88;
+  color: var(--ink-soft);
+}
+.rulemodal__text--tight {
+  margin-top: 0;
+  font-size: 13.5px;
+  line-height: 1.82;
+}
+
+.rulemodal__section {
+  margin-top: 16px;
+}
+
+.rulemodal__group {
+  margin: 12px 0 6px;
+  font-family: var(--font-kai);
+  font-size: 13.5px;
+  letter-spacing: 0.14em;
+  color: var(--dai);
+}
+
+.rulemodal__note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.72;
+  color: var(--ink-faint);
+}
+.rulemodal__note--gold {
+  color: #8a6427;
+}
+
+.rulemodal__foot-note {
+  margin: 16px 0 2px;
+  text-align: center;
+  font-family: var(--font-fang);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+}
+
+/* 入门三步 */
+.rulemodal__steps {
+  list-style: none;
+  margin: 9px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.rulemodal__step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+.rulemodal__step-num {
+  flex: 0 0 auto;
+  width: 23px;
+  height: 23px;
+  margin-top: 2px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-kai);
+  font-size: 12.5px;
+  color: var(--cinnabar);
+  border: 1px solid rgba(163, 58, 43, 0.36);
+  background: rgba(163, 58, 43, 0.07);
+}
+.rulemodal__step-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 奖项列表 */
+.rulemodal__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.rulemodal__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 245, 0.62);
+}
+.rulemodal__row--champion {
+  border-color: var(--gold-line);
+  background: linear-gradient(180deg, rgba(232, 199, 122, 0.18), rgba(255, 253, 245, 0.62));
+}
+.rulemodal__row--none {
+  background: rgba(41, 37, 31, 0.035);
+  border-style: dashed;
+}
+
+.rulemodal__disc {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-kai);
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  border: 1px solid var(--line-strong);
+  background: radial-gradient(circle at 34% 28%, #fffdf5, #ece0c4 78%);
+}
+.rulemodal__disc--champion {
+  color: #6d4c1f;
+  border-color: #a8814a;
+  background: radial-gradient(circle at 34% 28%, #f8ebc4, #dcb972 66%, #b18a55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.66), 0 1px 3px rgba(177, 138, 85, 0.4);
+}
+.rulemodal__disc--none {
+  color: var(--ink-faint);
+  border-style: dashed;
+  background: transparent;
+}
+
+.rulemodal__col {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rulemodal__name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rulemodal__name {
+  font-family: var(--font-kai);
+  font-size: 15.5px;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+}
+.rulemodal__tag {
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid var(--gold-line);
+  color: #7d5c31;
+  background: rgba(232, 199, 122, 0.3);
+  white-space: nowrap;
+}
+.rulemodal__rule {
+  font-size: 13.5px;
+  line-height: 1.68;
+  color: var(--ink-soft);
+}
+
+.rulemodal__score {
+  flex: 0 0 auto;
+  padding-top: 3px;
+  font-size: 14px;
+  color: var(--dai);
+  white-space: nowrap;
+}
+.rulemodal__score--gold {
+  color: #8a6427;
+  font-weight: 600;
+}
+
+/* 对堂：一点到六点各一颗 */
+.rulemodal__dice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 3px;
+}
+.rulemodal__die {
+  width: 23px;
+  height: 23px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-kai);
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #fffdf6, #f0e6cd);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* 奖品数量 */
+.rulemodal__prizes {
+  list-style: none;
+  margin: 9px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+  gap: 6px;
+}
+.rulemodal__prize {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 245, 0.62);
+}
+.rulemodal__prize--champion {
+  border-color: var(--gold-line);
+  background: rgba(232, 199, 122, 0.22);
+}
+.rulemodal__prize-name {
+  font-family: var(--font-kai);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.rulemodal__prize-count {
+  font-size: 13px;
+  color: var(--dai);
+  overflow-wrap: anywhere;
+}
+
+/* 机制说明区块 */
+.rulemodal__block {
+  margin-top: 16px;
+  padding: 11px 13px 13px;
+  border-radius: var(--radius);
+  border: 1px solid var(--gold-line);
+  background: linear-gradient(180deg, rgba(232, 199, 122, 0.16), rgba(255, 253, 245, 0.55));
+}
+.rulemodal__block--dai {
+  border-color: rgba(61, 89, 96, 0.34);
+  background: linear-gradient(180deg, rgba(61, 89, 96, 0.1), rgba(255, 253, 245, 0.55));
+}
+
+.rulemodal__block-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-family: var(--font-kai);
+  font-size: 15px;
+  letter-spacing: 0.18em;
+  color: var(--cinnabar);
+}
+.rulemodal__block-title--dai {
+  color: var(--dai);
+}
+.rulemodal__block-title::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #f8ebc4, #d9b76f 62%, #b18a55);
+  box-shadow: 0 0 0 1px rgba(177, 138, 85, 0.42);
+}
+
+/* ---- 移动端 ---- */
+
+@media (max-width: 430px) {
+  .rulemodal__paper {
+    max-height: 80vh;
+  }
+  .rulemodal__body {
+    padding: 17px 13px 4px;
+  }
+  .rulemodal__footer {
+    padding: 9px 13px calc(13px + env(safe-area-inset-bottom, 0px));
+  }
+  .rulemodal__head {
+    padding: 0 42px 2px;
+  }
+  .rulemodal__close {
+    top: 20px;
+    right: 2px;
+  }
+  .rulemodal__row {
+    gap: 9px;
+    padding: 7px 9px;
+  }
+  .rulemodal__disc {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+  }
+  .rulemodal__prizes {
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  }
+}
+
+@media (max-height: 640px) {
+  .rulemodal__paper,
+  .rulemodal__body {
+    max-height: 74vh;
+  }
+}

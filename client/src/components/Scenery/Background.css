@@ -1,0 +1,434 @@
+/* ==========================================================================
+   背景装饰层 —— 宣纸上的工笔山水
+   本文件同时承载 Moon（月相）组件的样式：Moon 与 Background 同目录，
+   且不允许新建 Moon.css，故月相所需的类与 keyframes 一并写在这里。
+   规则：动画只用 transform / opacity；尺寸用 vw / vmin / clamp；
+        375px 下不产生横向滚动；prefers-reduced-motion 下全部停止（见文末）。
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. 容器
+   -------------------------------------------------------------------------- */
+
+.scenery {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* --------------------------------------------------------------------------
+   2. 古典窗棂（四角与边缘，中间镂空）
+   -------------------------------------------------------------------------- */
+
+.scenery__lattice {
+  position: absolute;
+  inset: 0;
+  opacity: 0.055;
+  background-image:
+    repeating-linear-gradient(90deg, var(--ink) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(0deg, var(--ink) 0 1px, transparent 1px 28px);
+  -webkit-mask-image: radial-gradient(125% 95% at 50% 46%, transparent 32%, #000 96%);
+  mask-image: radial-gradient(125% 95% at 50% 46%, transparent 32%, #000 96%);
+}
+
+/* --------------------------------------------------------------------------
+   3. 右上角满月（纯装饰，不抢内容）
+   -------------------------------------------------------------------------- */
+
+.scenery__moon {
+  position: absolute;
+  top: clamp(14px, 4.5vh, 56px);
+  right: clamp(14px, 5vw, 72px);
+  width: clamp(52px, 15vmin, 96px);
+  aspect-ratio: 1 / 1;
+}
+
+/* 柔光：几层逐渐淡出的圆 */
+.scenery__moon::before {
+  content: "";
+  position: absolute;
+  inset: -80%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 248, 225, 0.5) 0%,
+    rgba(232, 199, 122, 0.16) 40%,
+    rgba(232, 199, 122, 0) 70%
+  );
+}
+
+/* 月盘：奶白到淡金 */
+.scenery__moon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  opacity: 0.4;
+  background: radial-gradient(circle at 36% 30%, #fffdf3 0%, #f7ecca 55%, #e8c77a 100%);
+  box-shadow:
+    0 0 2.6vmin rgba(232, 199, 122, 0.45),
+    inset -0.3vmin -0.5vmin 1.6vmin rgba(177, 138, 85, 0.22);
+}
+
+/* --------------------------------------------------------------------------
+   4. 如意祥云（横向缓慢漂移）
+   -------------------------------------------------------------------------- */
+
+.scenery__cloud {
+  position: absolute;
+  width: clamp(112px, 30vw, 280px);
+  height: auto;
+  opacity: 0.55;
+  animation: sceneryDrift 104s linear infinite;
+}
+
+.scenery__cloud--a {
+  top: 13%;
+  left: 58%;
+  animation-duration: 104s;
+  animation-delay: -18s;
+}
+
+.scenery__cloud--b {
+  top: 27%;
+  left: 70%;
+  width: clamp(86px, 22vw, 200px);
+  opacity: 0.48;
+  animation-duration: 120s;
+  animation-delay: -62s;
+}
+
+.scenery__cloud--c {
+  top: 6%;
+  left: 82%;
+  width: clamp(96px, 25vw, 232px);
+  opacity: 0.62;
+  animation-duration: 78s;
+  animation-delay: -40s;
+}
+
+.scenery__cloud-body {
+  fill: rgba(255, 253, 246, 0.7);
+  stroke: rgba(177, 138, 85, 0.4);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.scenery__cloud-curl {
+  fill: none;
+  stroke: rgba(177, 138, 85, 0.5);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* --------------------------------------------------------------------------
+   5. 灯笼（朱砂灯身 + 金色竖纹 + 云纹盖 + 流苏）
+   -------------------------------------------------------------------------- */
+
+.scenery__lantern {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: clamp(24px, 7vmin, 46px);
+  transform-origin: 50% 0;
+  animation: sceneryLanternSway 8s var(--ease-soft) infinite;
+}
+
+.scenery__lantern--left {
+  top: 0;
+  left: clamp(10px, 7vw, 72px);
+}
+
+.scenery__lantern--right {
+  top: clamp(96px, 20vh, 210px);
+  right: clamp(8px, 4vw, 44px);
+  width: clamp(20px, 5.5vmin, 36px);
+  animation-duration: 10.5s;
+  animation-delay: -4s;
+}
+
+.scenery__lantern-cord {
+  width: 2px;
+  height: clamp(16px, 5vh, 44px);
+  background: linear-gradient(180deg, rgba(177, 138, 85, 0), var(--gold-line));
+}
+
+.scenery__lantern-body {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 0.86;
+  border-radius: 50% / 46%;
+  background-color: #a33a2b;
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      rgba(232, 199, 122, 0.5) 0 1px,
+      rgba(232, 199, 122, 0) 1px 7px
+    ),
+    radial-gradient(circle at 34% 28%, #c0392b 0%, #a33a2b 52%, #7e2a1d 100%);
+  box-shadow: inset 0 0 0 1px rgba(232, 199, 122, 0.32);
+}
+
+/* 上下金色云纹盖 */
+.scenery__lantern-body::before,
+.scenery__lantern-body::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 58%;
+  height: 13%;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: linear-gradient(180deg, #e8c77a, #b18a55);
+}
+
+.scenery__lantern-body::before {
+  top: -6%;
+}
+
+.scenery__lantern-body::after {
+  bottom: -6%;
+}
+
+.scenery__lantern-tassel {
+  width: 2px;
+  height: clamp(9px, 3vh, 22px);
+  margin-top: 7%;
+  background: linear-gradient(180deg, var(--gold), rgba(163, 58, 43, 0.85));
+}
+
+.scenery__lantern-tassel::before {
+  content: "";
+  display: block;
+  width: 6px;
+  height: 6px;
+  margin: 0 auto 1px;
+  border-radius: 50%;
+  background: var(--gold-light);
+}
+
+/* --------------------------------------------------------------------------
+   6. 桂花飘落
+   元素停在视口上方（top: -10vh），靠 keyframes 一路落到画面之外，
+   这样循环复位时花朵在屏幕外，不会出现「瞬移」。
+   -------------------------------------------------------------------------- */
+
+.scenery__osmanthus {
+  position: absolute;
+  top: -10vh;
+  width: clamp(9px, 2.4vmin, 15px);
+  height: auto;
+  color: var(--gold-light);
+  animation-name: sceneryFall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.scenery__osmanthus--sm {
+  width: clamp(6px, 1.7vmin, 11px);
+}
+
+.scenery__osmanthus path {
+  fill: currentColor;
+}
+
+/* --------------------------------------------------------------------------
+   7. 远景淡墨山水
+   -------------------------------------------------------------------------- */
+
+.scenery__hills {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: block;
+  width: 100%;
+  height: clamp(112px, 20vh, 240px);
+}
+
+.scenery__hills-far {
+  fill: rgba(41, 37, 31, 0.09);
+  filter: url(#scenery-ink-blur);
+}
+
+.scenery__hills-near {
+  fill: rgba(41, 37, 31, 0.14);
+}
+
+/* --------------------------------------------------------------------------
+   8. Moon —— 月相（月华进度）
+   -------------------------------------------------------------------------- */
+
+.moon-field {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+  line-height: 0;
+}
+
+.moon-field__halo {
+  position: absolute;
+  inset: -55%;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    circle,
+    rgba(255, 248, 225, 0.55) 0%,
+    rgba(232, 199, 122, 0.22) 40%,
+    rgba(232, 199, 122, 0) 70%
+  );
+}
+
+.moon-field--charging .moon-field__halo {
+  opacity: 0.5;
+  animation: moonFieldBreath 4.4s var(--ease-soft) infinite;
+}
+
+.moon-field--full .moon-field__halo {
+  opacity: 0.9;
+  animation: moonFieldPulse 3.2s var(--ease-soft) infinite;
+}
+
+.moon-field--done .moon-field__halo {
+  opacity: 0.75;
+}
+
+.moon-field__svg {
+  position: relative;
+  z-index: 1;
+  display: block;
+  overflow: visible;
+}
+
+.moon-field__disc {
+  fill: rgba(41, 37, 31, 0.06);
+}
+
+.moon-field--idle .moon-field__disc {
+  fill: rgba(41, 37, 31, 0.035);
+}
+
+.moon-field__rim {
+  fill: none;
+  stroke: rgba(41, 37, 31, 0.26);
+  stroke-width: 1.5;
+}
+
+.moon-field--idle .moon-field__rim {
+  stroke: rgba(41, 37, 31, 0.22);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.moon-field--charging .moon-field__rim {
+  stroke: var(--gold-line);
+}
+
+.moon-field--full .moon-field__rim,
+.moon-field--done .moon-field__rim {
+  stroke: var(--gold);
+  stroke-width: 2;
+}
+
+.moon-field__seal-ring {
+  fill: rgba(163, 58, 43, 0.06);
+  stroke: var(--cinnabar);
+  stroke-width: 1.6;
+}
+
+.moon-field__seal-text {
+  fill: var(--cinnabar);
+  font-family: var(--font-kai);
+  font-size: 24px;
+}
+
+/* --------------------------------------------------------------------------
+   9. keyframes
+   -------------------------------------------------------------------------- */
+
+@keyframes sceneryDrift {
+  from {
+    transform: translate3d(-140vw, 0, 0);
+  }
+  to {
+    transform: translate3d(50vw, 0, 0);
+  }
+}
+
+@keyframes sceneryLanternSway {
+  0%,
+  100% {
+    transform: rotate(-1.6deg);
+  }
+  50% {
+    transform: rotate(1.6deg);
+  }
+}
+
+@keyframes sceneryFall {
+  from {
+    transform: translate3d(0, 0, 0) rotate(-12deg);
+  }
+  to {
+    transform: translate3d(3vw, 128vh, 0) rotate(292deg);
+  }
+}
+
+@keyframes moonFieldBreath {
+  0%,
+  100% {
+    transform: scale(0.94);
+    opacity: 0.42;
+  }
+  50% {
+    transform: scale(1.03);
+    opacity: 0.6;
+  }
+}
+
+@keyframes moonFieldPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   10. 减少动效
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .scenery__cloud,
+  .scenery__lantern,
+  .scenery__osmanthus,
+  .moon-field__halo,
+  .moon-field--charging .moon-field__halo,
+  .moon-field--full .moon-field__halo {
+    animation: none;
+  }
+
+  /* 停在视口上方会被裁掉，索性不显示，留一片安静的山月 */
+  .scenery__osmanthus {
+    display: none;
+  }
+
+  .moon-field--charging .moon-field__halo {
+    opacity: 0.5;
+  }
+
+  .moon-field--full .moon-field__halo,
+  .moon-field--done .moon-field__halo {
+    opacity: 0.85;
+  }
+}

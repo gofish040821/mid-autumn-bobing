@@ -1,0 +1,31 @@
+{
+  "name": "mid-autumn-bobing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "月满中秋 · 在线博饼 —— 真正的实时多人联机中秋博饼网页小游戏",
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n server,client -c magenta,cyan \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "npm run dev --workspace @bobing/server",
+    "dev:client": "npm run dev --workspace @bobing/client",
+    "build": "npm run build --workspace @bobing/client",
+    "start": "npm run start --workspace @bobing/server",
+    "typecheck": "npm run typecheck --workspace @bobing/shared && npm run typecheck --workspace @bobing/server && npm run typecheck --workspace @bobing/client",
+    "test": "npm run test --workspace @bobing/server",
+    "test:e2e": "node scripts/e2e-smoke.mjs",
+    "test:browser": "node scripts/browser-smoke.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "playwright-core": "^1.63.0",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

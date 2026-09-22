@@ -1,0 +1,213 @@
+/* ==========================================================================
+   RulesPage —— 落地页
+   宣纸底 + 一轮满月 + 三步说明。移动端优先，永不横向溢出。
+   ========================================================================== */
+
+.rules-page {
+  justify-content: center;
+  gap: 18px;
+  padding-top: clamp(18px, 5vh, 44px);
+  padding-bottom: calc(26px + env(safe-area-inset-bottom));
+}
+
+/* ---------- 页头 ---------- */
+
+.rules-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.rules-head__moon {
+  display: block;
+  width: clamp(54px, 17vw, 82px);
+  aspect-ratio: 1 / 1;
+  filter: drop-shadow(0 6px 16px rgba(177, 138, 85, 0.32));
+}
+
+.rules-head__moon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 楷体标题 + 金色描边感（用多重 text-shadow 模拟，不动画） */
+.rules-head__title {
+  margin: 0;
+  font-size: clamp(27px, 8vw, 44px);
+  letter-spacing: 0.14em;
+  text-indent: 0.14em;
+  color: var(--ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85), 0 0 1px rgba(177, 138, 85, 0.9),
+    0 0 20px rgba(232, 199, 122, 0.5);
+}
+
+.rules-head__sub {
+  margin: 0;
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+  color: var(--ink-soft);
+}
+
+.rules-head__rule {
+  width: min(300px, 72%);
+  margin: 8px 0 2px;
+}
+
+.rules-intro {
+  margin: 0;
+  max-width: 32em;
+  font-size: clamp(14px, 3.9vw, 16px);
+  line-height: 1.85;
+  color: var(--ink-soft);
+}
+
+/* ---------- 三个步骤 ---------- */
+
+.rules-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 11px;
+}
+
+.rules-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  background: linear-gradient(180deg, rgba(255, 253, 245, 0.94), rgba(243, 233, 210, 0.78));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.rules-step__icon {
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  display: block;
+}
+
+.rules-step__icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.rules-step__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rules-step__ordinal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 13px;
+  line-height: 1;
+  color: #7d5c31;
+  border: 1px solid var(--gold-line);
+  border-radius: 50%;
+  background: rgba(232, 199, 122, 0.3);
+}
+
+.rules-step__title {
+  margin: 0;
+  font-size: clamp(15px, 4.2vw, 17px);
+  letter-spacing: 0.1em;
+  color: var(--ink);
+}
+
+.rules-step__desc {
+  margin: 0;
+  font-size: clamp(14px, 3.7vw, 15px);
+  line-height: 1.72;
+  color: var(--ink-soft);
+}
+
+/* ---------- 按钮 ---------- */
+
+.rules-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.rules-actions__main {
+  min-height: 50px;
+  font-size: clamp(16px, 4.5vw, 18px);
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
+  white-space: nowrap;
+}
+
+.rules-actions__row {
+  display: flex;
+  gap: 10px;
+}
+
+.rules-actions__row .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 46px;
+  white-space: nowrap;
+}
+
+/* ---------- 页脚小字 ---------- */
+
+.rules-foot {
+  margin: 2px 0 0;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.7;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+
+/* ---------- 桌面端：三步横排、内容居中收窄 ---------- */
+
+@media (min-width: 640px) {
+  .rules-page {
+    gap: 22px;
+  }
+
+  .rules-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .rules-step {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 16px 15px 18px;
+  }
+
+  .rules-step__icon {
+    width: 56px;
+    height: 56px;
+  }
+
+  .rules-actions {
+    width: 100%;
+    max-width: 420px;
+    margin: 2px auto 0;
+  }
+
+  .rules-actions__row .btn {
+    flex: 1 1 auto;
+  }
+}

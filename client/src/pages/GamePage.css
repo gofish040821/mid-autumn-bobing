@@ -1,0 +1,256 @@
+/* ==========================================================================
+   GamePage —— 对局页
+   这里只管「版面」：栅格、状态条、博饼按钮、开奖回显。
+   骰子、倒计时、席位、题名榜、库存、月华、记录、状元席的样式
+   都由各自的组件在 components/ 下自带，避免重复维护。
+   移动优先：手机单列 → 平板两栏 → 桌面三栏。
+   ========================================================================== */
+
+.game {
+  position: relative;
+}
+
+/* 追状元阶段：整页气氛升级（只加亮金线，绝不改变文字对比度） */
+.game--chase {
+  --gold-line: rgba(177, 138, 85, 0.85);
+}
+.game--chase::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  border-radius: 2px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--gold-light),
+    var(--gold),
+    var(--gold-light),
+    transparent
+  );
+}
+.game--chase .scroll,
+.game--chase .panel {
+  border-color: rgba(177, 138, 85, 0.45);
+}
+
+/* ---------- 栅格：手机单列（DOM 顺序即展示顺序） ---------- */
+
+.game__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.game-block {
+  min-width: 0;
+}
+
+/* ==========================================================================
+   状态条 / 当前玩家
+   ========================================================================== */
+
+.game__status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  text-align: center;
+}
+
+.game__call-wrap {
+  width: 100%;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game__call {
+  margin: 0;
+  font-size: clamp(19px, 5.4vw, 27px);
+  line-height: 1.3;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.game__call--mine {
+  font-size: clamp(26px, 8vw, 40px);
+  letter-spacing: 0.16em;
+  color: var(--cinnabar);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.game__meta {
+  justify-content: center;
+}
+
+.game__chase-line {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+}
+
+.game__flash {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* ==========================================================================
+   博饼按钮
+   ========================================================================== */
+
+.game__roll {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 2px;
+}
+
+.game__roll-hint {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* ==========================================================================
+   最近一次开奖
+   ========================================================================== */
+
+.game-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: 560px;
+  margin: 0 auto;
+  font-size: 14px;
+}
+
+.game-result__name {
+  font-family: var(--font-kai);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.game-result__award {
+  font-size: 17px;
+  letter-spacing: 0.08em;
+}
+
+.game-result__outcome {
+  color: var(--ink-soft);
+}
+
+.game-result__sep {
+  color: var(--line-strong);
+}
+
+.game__result-empty {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+}
+
+/* ==========================================================================
+   平板：640px 起，两栏（主舞台跨满宽在上）
+   ========================================================================== */
+
+@media (min-width: 640px) {
+  .game__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "status status"
+      "timer  timer"
+      "dice   dice"
+      "roll   roll"
+      "result result"
+      "champ  champ"
+      "moon   moon"
+      "seats  inv"
+      "score  log";
+    align-items: start;
+    gap: 12px;
+  }
+
+  .game__status {
+    grid-area: status;
+  }
+  .game__timer {
+    grid-area: timer;
+  }
+  .game__dice {
+    grid-area: dice;
+  }
+  .game__roll {
+    grid-area: roll;
+  }
+  .game__result {
+    grid-area: result;
+  }
+  .game__champ {
+    grid-area: champ;
+  }
+  .game__players {
+    grid-area: seats;
+  }
+  .game__score {
+    grid-area: score;
+  }
+  .game__inv {
+    grid-area: inv;
+  }
+  .game__moon {
+    grid-area: moon;
+  }
+  .game__log {
+    grid-area: log;
+  }
+}
+
+/* ==========================================================================
+   桌面：1024px 起，三栏 + 月华值一行 + 题名榜/记录两栏
+   ========================================================================== */
+
+@media (min-width: 1024px) {
+  .game__grid {
+    grid-template-columns: minmax(0, 250px) minmax(0, 1fr) minmax(0, 300px);
+    grid-template-areas:
+      "seats status inv"
+      "seats timer  inv"
+      "seats dice   inv"
+      "seats roll   inv"
+      "seats result inv"
+      "seats champ  inv"
+      "moon  moon   moon"
+      "score log    log";
+    gap: 14px;
+  }
+
+  .game__players,
+  .game__inv {
+    align-self: start;
+  }
+
+  .game__status {
+    padding-top: 6px;
+  }
+
+  .game__call-wrap {
+    min-height: 62px;
+  }
+}
