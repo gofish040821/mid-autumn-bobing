@@ -12,9 +12,9 @@ export const ROOM_ID = 'MAIN_ROOM';
 export const ROOM_TITLE = '月满中秋 · 今夜博饼局';
 
 export const MIN_PLAYERS = 2;
-export const MAX_PLAYERS = 10;
+export const MAX_PLAYERS = 15;
 
-/** 凑满 10 人后的自动开局倒计时。 */
+/** 凑满（满员）后的自动开局倒计时。 */
 export const AUTO_START_COUNTDOWN_MS = 5_000;
 
 /**
@@ -58,16 +58,16 @@ export { ROLL_TIMING, TRANSITION_BUFFER_MS, transitionMsFor } from '@bobing/shar
 export const MOON_BLESSING_START_ROUND = 2;
 
 /** 第二轮第一次额外状元概率。 */
-export const MOON_BLESSING_INITIAL_RATE = 0.05;
+export const MOON_BLESSING_INITIAL_RATE = 0.03;
 
 /** 之后每掷一次仍未出状元，额外提升的概率。 */
-export const MOON_BLESSING_RATE_INCREMENT = 0.02;
+export const MOON_BLESSING_RATE_INCREMENT = 0.01;
 
 /** 额外概率上限。 */
-export const MOON_BLESSING_MAX_RATE = 0.2;
+export const MOON_BLESSING_MAX_RATE = 0.15;
 
-/** 最多三个完整轮次内必须出现首个状元。 */
-export const CHAMPION_GUARANTEE_ROUND = 3;
+/** 最多五个完整轮次内必须出现首个状元。 */
+export const CHAMPION_GUARANTEE_ROUND = 5;
 
 /**
  * 月华加持触发时，生成 Champion Tier 的权重。

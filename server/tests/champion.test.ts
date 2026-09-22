@@ -195,9 +195,9 @@ describe('buildMoonBlessingView · 月华值视图', () => {
     expect(v.nearGuarantee).toBe(false);
   });
 
-  it('guaranteeAtRoll 始终是 3N', () => {
+  it('guaranteeAtRoll 始终等于 guaranteeRollNumber(n)', () => {
     for (let n = MIN_PLAYERS; n <= MAX_PLAYERS; n += 1) {
-      expect(view(0, false, n).guaranteeAtRoll).toBe(3 * n);
+      expect(view(0, false, n).guaranteeAtRoll).toBe(guaranteeRollNumber(n));
     }
   });
 

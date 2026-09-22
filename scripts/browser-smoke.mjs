@@ -310,7 +310,7 @@ async function main() {
     for (const name of ['苏子瞻', '黄鲁直', '秦少游', '晁无咎']) {
       check(`大厅里能看到「${name}」`, lobbyText.includes(name));
     }
-    check('大厅显示了「4 / 10」一类的在位人数', /4\s*\/\s*10|4\s*位/.test(lobbyText), lobbyText.slice(0, 120));
+    check('大厅显示了「4 / 15」一类的在位人数', /4\s*\/\s*15|4\s*位/.test(lobbyText), lobbyText.slice(0, 120));
     await shot(hostProbe, '03-lobby-four-players');
 
     /* ---------------- 3. 开局 ---------------- */

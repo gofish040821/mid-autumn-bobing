@@ -2,7 +2,7 @@
  * GameEngine 集成测试 —— 题目 §41 里点名的全部边界情况。
  *
  * 全程使用 FakeClock + 可编排的确定性 Rng：
- * 时间与骰子都被完全掌控，所以「30 秒超时」「三轮保底」这些
+ * 时间与骰子都被完全掌控，所以「30 秒超时」「保底」这些
  * 平时要靠运气的路径，在这里都是确定性的。
  */
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -11,6 +11,7 @@ import type { ErrorCode, RollRecord } from '@bobing/shared';
 import {
   ABANDON_GRACE_MS,
   AUTO_START_COUNTDOWN_MS,
+  CHAMPION_GUARANTEE_ROUND,
   LOBBY_GHOST_TTL_MS,
   MAX_PLAYERS,
   MIN_PLAYERS,
@@ -195,7 +196,7 @@ describe('开局人数', () => {
     expect(snap.players).toHaveLength(MIN_PLAYERS);
   });
 
-  it('10 个人可以开局', () => {
+  it(`${MAX_PLAYERS} 个人可以开局`, () => {
     fill(h, MAX_PLAYERS);
     startGame(h);
     expect(h.engine.snapshot().phase).toBe('NORMAL_TURN');
@@ -214,7 +215,7 @@ describe('开局人数', () => {
     expect(h.engine.snapshot().players).toHaveLength(MAX_PLAYERS);
   });
 
-  it('满 10 人后 5 秒自动开局', () => {
+  it(`满 ${MAX_PLAYERS} 人后 5 秒自动开局`, () => {
     fill(h, MAX_PLAYERS);
     expect(h.engine.snapshot().autoStartAt).not.toBeNull();
     h.clock.advance(AUTO_START_COUNTDOWN_MS);
@@ -777,16 +778,16 @@ describe('结算与最终状元', () => {
 });
 
 /* ------------------------------------------------------------------ *
- * 6. 三轮保底
+ * 6. 保底
  * ------------------------------------------------------------------ */
 
-describe('三轮保底', () => {
-  it(`最少人数局最多 3N 次之内必定出现首位状元`, () => {
+describe('保底', () => {
+  it(`最少人数局最多 ${CHAMPION_GUARANTEE_ROUND}N 次之内必定出现首位状元`, () => {
     const h = createHarness();
     fill(h, MIN_PLAYERS);
     startGame(h);
 
-    const guaranteeAt = guaranteeRollNumber(MIN_PLAYERS); // 6
+    const guaranteeAt = guaranteeRollNumber(MIN_PLAYERS); // 10
     for (let i = 1; i < guaranteeAt; i += 1) {
       const roll = playTurn(h, D_NONE);
       expect(roll.isChampionTier).toBe(false);
@@ -794,24 +795,24 @@ describe('三轮保底', () => {
     expect(h.engine.snapshot().phase).toBe('NORMAL_TURN');
     expect(h.engine.snapshot().champion.playerId).toBeNull();
 
-    // 第 6 次：无条件保底。传空数组表示不预设骰子 —— 队列为空时 rng 回落到 0.99，
+    // 第 10 次：无条件保底。传空数组表示不预设骰子 —— 队列为空时 rng 回落到 0.99，
     // 按权重抽到最顶级的状元插金花，结果依然完全确定。
     playTurn(h, []);
     const snap = h.engine.snapshot();
     expect(snap.phase).toBe('CHAMPION_CHASE');
     expect(snap.champion.playerId).not.toBeNull();
     expect(snap.stats.firstChampionRollIndex).toBe(guaranteeAt);
-    expect(snap.stats.firstChampionRollIndex!).toBeLessThanOrEqual(3 * MIN_PLAYERS);
+    expect(snap.stats.firstChampionRollIndex!).toBeLessThanOrEqual(CHAMPION_GUARANTEE_ROUND * MIN_PLAYERS);
     expect(snap.champion.awardId).toBe('CHAMPION_FLOWER');
     h.engine.dispose();
   });
 
-  it(`10 人局最多 30 次之内必定出现首位状元`, () => {
+  it(`${MAX_PLAYERS} 人局最多 ${CHAMPION_GUARANTEE_ROUND * MAX_PLAYERS} 次之内必定出现首位状元`, () => {
     const h = createHarness();
     fill(h, MAX_PLAYERS);
     startGame(h);
 
-    const guaranteeAt = guaranteeRollNumber(MAX_PLAYERS); // 30
+    const guaranteeAt = guaranteeRollNumber(MAX_PLAYERS); // 75
     for (let i = 1; i < guaranteeAt; i += 1) playTurn(h, D_NONE);
     expect(h.engine.snapshot().champion.playerId).toBeNull();
 

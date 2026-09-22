@@ -571,7 +571,7 @@ export class GameEngine {
           this.state.autoStartAt = null;
           this.autoStartAsHost();
         }, AUTO_START_COUNTDOWN_MS);
-        this.log('十人已满，五秒后自动开席。', 'system');
+        this.log(`${MAX_PLAYERS}人已满，五秒后自动开席。`, 'system');
         events.push({ type: 'room:snapshot' });
       }
       return;

@@ -30,13 +30,13 @@ describe('buildInventory · 库存配置', () => {
     });
   });
 
-  it('10 人局：一秀40 二举20 三红10 四进5 对堂2 状元1', () => {
-    expectInventory(buildInventory(10), {
-      ONE_SHOW: 40,
-      TWO_LIFT: 20,
-      THREE_RED: 10,
-      FOUR_ADVANCE: 5,
-      DUITANG: 2,
+  it('15 人局：一秀60 二举30 三红15 四进8 对堂3 状元1', () => {
+    expectInventory(buildInventory(15), {
+      ONE_SHOW: 60,
+      TWO_LIFT: 30,
+      THREE_RED: 15,
+      FOUR_ADVANCE: 8,
+      DUITANG: 3,
       CHAMPION: 1,
     });
   });

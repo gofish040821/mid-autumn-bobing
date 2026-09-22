@@ -202,7 +202,7 @@ export default function RulesPage(): JSX.Element {
         </div>
       </div>
 
-      <p className="rules-foot">本桌最多十人 · 一局约五到十分钟 · 匿名参与，无需注册</p>
+      <p className="rules-foot">本桌最多十五人 · 一局约五到十分钟 · 匿名参与，无需注册</p>
     </motion.div>
   );
 }

@@ -130,7 +130,7 @@ export function pickWeightedChampion(
  * 月华加持 / 状元保底
  * ------------------------------------------------------------------ */
 
-/** 保底触发的那一次掷骰序号（3N）。 */
+/** 保底触发的那一次掷骰序号（5N）。 */
 export function guaranteeRollNumber(playerCount: number): number {
   return CHAMPION_GUARANTEE_ROUND * playerCount;
 }
@@ -161,7 +161,7 @@ export interface NormalPhaseOutcome {
   dice: number[];
   /** 由月华加持额外催生 */
   blessed: boolean;
-  /** 由三轮保底强制产生 */
+  /** 由保底强制产生 */
   guaranteed: boolean;
 }
 
@@ -170,7 +170,7 @@ export interface NormalPhaseOutcome {
  *   1. 先真随机掷一次；
  *   2. 若本来就是 Champion Tier，直接采用（不消耗加持）；
  *   3. 否则按当前月华概率决定是否额外催生一个 Champion Tier；
- *   4. 到达 3N 次时无条件保底。
+ *   4. 到达保底序号时无条件保底。
  */
 export function rollNormalPhase(
   normalRollCount: number,

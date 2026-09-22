@@ -131,12 +131,12 @@ export default function LobbyPage(): JSX.Element {
   const total = players.length;
   const seatCount = Math.max(1, total);
   const minPlayers = snapshot?.minPlayers ?? 2;
-  const maxPlayers = snapshot?.maxPlayers ?? 10;
+  const maxPlayers = snapshot?.maxPlayers ?? 15;
   const myId = identity.playerId;
 
   const statusText =
     total >= maxPlayers
-      ? `十人已满 · 共 ${maxPlayers} 位，即刻开席`
+      ? `满员 · 共 ${maxPlayers} 位，即刻开席`
       : total < minPlayers
         ? `当前 ${total} / ${maxPlayers} 人 · 还需要 ${minPlayers - total} 位朋友才能开席`
         : `当前 ${total} / ${maxPlayers} 人 · 人已齐，房主可以开席`;

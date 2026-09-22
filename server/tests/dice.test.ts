@@ -3,7 +3,7 @@
  *
  * 重点：
  *  - 随机骰子的边界（rng 返回 0 / 1 / NaN 都不能越界）；
- *  - 月华加持的概率曲线与三轮保底；
+ *  - 月华加持的概率曲线与保底；
  *  - 构造出来的状元骰型**必须恰好等于目标奖项**，不能意外升级或降级。
  */
 import { describe, expect, it } from 'vitest';
@@ -256,20 +256,20 @@ describe('DiceService · 月华加持概率曲线', () => {
   });
 });
 
-describe('DiceService · 三轮保底', () => {
+describe('DiceService · 保底', () => {
   it(`保底序号恒为 ${CHAMPION_GUARANTEE_ROUND}N`, () => {
-    expect(guaranteeRollNumber(MIN_PLAYERS)).toBe(3 * MIN_PLAYERS);
-    expect(guaranteeRollNumber(MAX_PLAYERS)).toBe(3 * MAX_PLAYERS);
+    expect(guaranteeRollNumber(MIN_PLAYERS)).toBe(CHAMPION_GUARANTEE_ROUND * MIN_PLAYERS);
+    expect(guaranteeRollNumber(MAX_PLAYERS)).toBe(CHAMPION_GUARANTEE_ROUND * MAX_PLAYERS);
     for (let n = 1; n <= 20; n += 1) {
       expect(guaranteeRollNumber(n)).toBe(CHAMPION_GUARANTEE_ROUND * n);
     }
   });
 
-  it('只有到达 3N 那一次才算保底', () => {
+  it('只有到达保底序号那一次才算保底', () => {
     const N = MIN_PLAYERS;
     const at = guaranteeRollNumber(N);
-    expect(isGuaranteedRoll(at - 2, N)).toBe(false); // 已完成 3N-2 次 → 下一次是第 3N-1 次
-    expect(isGuaranteedRoll(at - 1, N)).toBe(true); //  已完成 3N-1 次 → 下一次正好是第 3N 次
+    expect(isGuaranteedRoll(at - 2, N)).toBe(false); // 已完成 at-2 次 → 下一次是第 at-1 次
+    expect(isGuaranteedRoll(at - 1, N)).toBe(true); //  已完成 at-1 次 → 下一次正好是第 at 次
     expect(isGuaranteedRoll(at, N)).toBe(true); //      已经越过保底线，仍然保底
   });
 });
@@ -294,7 +294,7 @@ describe('DiceService · 普通阶段掷骰', () => {
   });
 
   it('概率命中时会加持出一个真正的 Champion Tier', () => {
-    // 第 2 轮第一次：rate = 0.05；掷出无奖的骰子后用 0.01 命中加持
+    // 第 2 轮第一次：rate = MOON_BLESSING_INITIAL_RATE；掷出无奖的骰子后用 0.01 命中加持
     const rng = queueRng([...faces(2, 3, 5, 6, 1, 2), 0.01, 0.3]);
     const outcome = rollNormalPhase(MIN_PLAYERS, MIN_PLAYERS, rng);
     expect(outcome.blessed).toBe(true);
@@ -309,7 +309,7 @@ describe('DiceService · 普通阶段掷骰', () => {
     expect(evaluateDice(outcome.dice).id).toBe('NONE');
   });
 
-  it('到达 3N 时无条件保底，且不需要消耗「概率判定」', () => {
+  it('到达保底序号时无条件保底，且不需要消耗「概率判定」', () => {
     const outcome = rollNormalPhase(guaranteeRollNumber(MIN_PLAYERS) - 1, MIN_PLAYERS, fixed(0.3));
     expect(outcome.guaranteed).toBe(true);
     expect(outcome.blessed).toBe(false);
@@ -329,9 +329,9 @@ describe('DiceService · 普通阶段掷骰', () => {
  * ------------------------------------------------------------------ */
 
 describe('配置常量', () => {
-  it('人数上下限与题目一致（2~10）', () => {
+  it('人数上下限与题目一致（2~15）', () => {
     expect(MIN_PLAYERS).toBe(2);
-    expect(MAX_PLAYERS).toBe(10);
+    expect(MAX_PLAYERS).toBe(15);
   });
 
   it('回合超时为 30 秒', () => {

@@ -149,7 +149,7 @@ export interface RollRecord {
   auto: boolean;
   /** 是否由「月华加持」加速产生 */
   blessed: boolean;
-  /** 是否由「三轮保底」强制产生 */
+  /** 是否由「保底」强制产生 */
   guaranteed: boolean;
   /** NORMAL 或 CHASE */
   kind: TurnKind;
@@ -175,7 +175,7 @@ export interface MoonBlessingView {
   rate: number;
   /** 已完成的普通阶段掷骰次数 */
   normalRollCount: number;
-  /** 保底触发的那一次掷骰序号（3N） */
+  /** 保底触发的那一次掷骰序号（保底轮次 × N） */
   guaranteeAtRoll: number;
   /** 0~1，用于点亮月亮 */
   progress: number;
@@ -247,7 +247,7 @@ export interface GameSnapshot {
   serverTime: number;
   minPlayers: number;
   maxPlayers: number;
-  /** 4~9 人时房主手动开始；10 人时自动开局倒计时 */
+  /** 未满员时房主手动开始；满员时自动开局倒计时 */
   autoStartAt: number | null;
 }
 
