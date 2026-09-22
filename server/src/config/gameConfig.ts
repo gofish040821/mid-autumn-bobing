@@ -11,7 +11,7 @@
 export const ROOM_ID = 'MAIN_ROOM';
 export const ROOM_TITLE = '月满中秋 · 今夜博饼局';
 
-export const MIN_PLAYERS = 4;
+export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 10;
 
 /** 凑满 10 人后的自动开局倒计时。 */

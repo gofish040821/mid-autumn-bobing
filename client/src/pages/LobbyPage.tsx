@@ -130,7 +130,7 @@ export default function LobbyPage(): JSX.Element {
   const players = snapshot?.players ?? [];
   const total = players.length;
   const seatCount = Math.max(1, total);
-  const minPlayers = snapshot?.minPlayers ?? 4;
+  const minPlayers = snapshot?.minPlayers ?? 2;
   const maxPlayers = snapshot?.maxPlayers ?? 10;
   const myId = identity.playerId;
 

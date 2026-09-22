@@ -1,7 +1,7 @@
 /**
  * GameStateMachine —— 阶段流转规则。
  *
- *   LOBBY ──4~10人开始──▶ NORMAL_TURN
+ *   LOBBY ──2~10人开始──▶ NORMAL_TURN
  *   NORMAL_TURN ──首个 Champion Tier──▶ CHAMPION_CHASE
  *   CHAMPION_CHASE ──N-1 位各追一次──▶ SETTLING
  *   SETTLING ──发最终状元奖──▶ FINISHED

@@ -180,19 +180,19 @@ describe('开局人数', () => {
     h = createHarness();
   });
 
-  it('3 个人不能开局', () => {
-    fill(h, 3);
+  it('1 个人不能开局', () => {
+    fill(h, 1);
     expectFail(h.engine.start(hostId(h)), 'NOT_ENOUGH_PLAYERS');
     expect(h.engine.snapshot().phase).toBe('LOBBY');
   });
 
-  it('4 个人可以开局', () => {
+  it('2 个人可以开局', () => {
     fill(h, MIN_PLAYERS);
     startGame(h);
     const snap = h.engine.snapshot();
     expect(snap.phase).toBe('NORMAL_TURN');
     expect(snap.currentTurn?.seat).toBe(1);
-    expect(snap.players).toHaveLength(4);
+    expect(snap.players).toHaveLength(MIN_PLAYERS);
   });
 
   it('10 个人可以开局', () => {
@@ -233,7 +233,7 @@ describe('开局人数', () => {
 
   it('非房主不能开局', () => {
     fill(h, MIN_PLAYERS);
-    expectFail(h.engine.start(h.players[3]!.id), 'NOT_HOST');
+    expectFail(h.engine.start(h.players[1]!.id), 'NOT_HOST');
   });
 
   it('开局后陌生人无法再加入', () => {
@@ -263,7 +263,7 @@ describe('开局人数', () => {
   it('开局后有效 token 可以重连，座位与身份不变', () => {
     fill(h, MIN_PLAYERS);
     startGame(h);
-    const target = h.players[2]!;
+    const target = h.players[1]!;
     h.engine.disconnect(target.id);
     expect(h.engine.snapshot().players.find((p) => p.id === target.id)?.online).toBe(false);
 
@@ -309,15 +309,17 @@ describe('开局人数', () => {
   });
 
   it('等待大厅里掉线超过 TTL 会被移出座位，座位号重新紧排', () => {
-    fill(h, MIN_PLAYERS);
+    // 显式凑 4 人：只有当「中间有人离席、后面还有更高座位号」时，
+    // 「座位号重新紧排」才有意义（2 人局删掉座位 2 就只剩 [1]，测不到重排）。
+    fill(h, 4);
     const leaving = h.players[1]!; // 座位 2
     h.engine.disconnect(leaving.id);
-    expect(h.engine.snapshot().players).toHaveLength(MIN_PLAYERS);
+    expect(h.engine.snapshot().players).toHaveLength(4);
 
     h.clock.advance(LOBBY_GHOST_TTL_MS);
 
     const snap = h.engine.snapshot();
-    expect(snap.players).toHaveLength(MIN_PLAYERS - 1);
+    expect(snap.players).toHaveLength(3);
     expect(snap.players.some((p) => p.id === leaving.id)).toBe(false);
     expect(snap.players.map((p) => p.seat)).toEqual([1, 2, 3]);
   });
@@ -348,7 +350,7 @@ describe('回合与防重复', () => {
   let h: Harness;
   beforeEach(() => {
     h = createHarness();
-    fill(h, MIN_PLAYERS);
+    fill(h, 4);
     startGame(h);
   });
 
@@ -466,7 +468,7 @@ describe('奖品与积分', () => {
   let h: Harness;
   beforeEach(() => {
     h = createHarness();
-    fill(h, MIN_PLAYERS);
+    fill(h, 4);
     startGame(h);
   });
 
@@ -495,7 +497,7 @@ describe('奖品与积分', () => {
 
   it('库存为 0 时骰型照常显示，但不发奖不加分', () => {
     // 4 人局三红库存正好 4 个，一圈领完之后就没了
-    for (let i = 0; i < MIN_PLAYERS; i += 1) playTurn(h, D_THREE_RED);
+    for (let i = 0; i < 4; i += 1) playTurn(h, D_THREE_RED);
     expect(h.engine.snapshot().inventory.counts.THREE_RED).toBe(0);
 
     const before = h.engine.snapshot().players.map((p) => p.score);
@@ -556,7 +558,7 @@ describe('追状元', () => {
   let h: Harness;
   beforeEach(() => {
     h = createHarness();
-    fill(h, MIN_PLAYERS);
+    fill(h, 4);
     startGame(h);
   });
 
@@ -575,8 +577,8 @@ describe('追状元', () => {
     // 用 rollOnly：一旦推进时钟，队列的第一位就已经被取走开跑了
     const roll = rollOnly(h, D_FOUR_FOUR);
     const snap = h.engine.snapshot();
-    expect(snap.champion.chaseQueue).toHaveLength(MIN_PLAYERS - 1);
-    expect(snap.champion.chaseTotal).toBe(MIN_PLAYERS - 1);
+    expect(snap.champion.chaseQueue).toHaveLength(3);
+    expect(snap.champion.chaseTotal).toBe(3);
     expect(snap.champion.chaseQueue).not.toContain(roll.playerId);
     expect(snap.champion.chaseDone).toBe(0);
     advance(h);
@@ -645,8 +647,8 @@ describe('追状元', () => {
     expect(snap.phase).toBe('FINISHED');
     expect(snap.currentTurn).toBeNull();
     expect(snap.champion.chaseQueue).toHaveLength(0);
-    expect(snap.champion.chaseDone).toBe(MIN_PLAYERS - 1);
-    expect(snap.stats.totalRolls).toBe(MIN_PLAYERS);
+    expect(snap.champion.chaseDone).toBe(3);
+    expect(snap.stats.totalRolls).toBe(4);
   });
 
   it('追状元阶段关闭月华加持，normalRollCount 不再增长', () => {
@@ -684,7 +686,7 @@ describe('结算与最终状元', () => {
   let h: Harness;
   beforeEach(() => {
     h = createHarness();
-    fill(h, MIN_PLAYERS);
+    fill(h, 4);
     startGame(h);
   });
 
@@ -715,7 +717,7 @@ describe('结算与最终状元', () => {
     expect(result!.championBaseScore).toBe(30);
     expect(result!.championBonus).toBe(100);
     expect(result!.championDice).toEqual([4, 4, 4, 4, 2, 6]);
-    expect(result!.ranking).toHaveLength(MIN_PLAYERS);
+    expect(result!.ranking).toHaveLength(4);
     // 榜单按积分降序
     const scores = result!.ranking.map((r) => r.score);
     expect([...scores].sort((a, b) => b - a)).toEqual(scores);
@@ -779,12 +781,12 @@ describe('结算与最终状元', () => {
  * ------------------------------------------------------------------ */
 
 describe('三轮保底', () => {
-  it(`4 人局最多 12 次之内必定出现首位状元`, () => {
+  it(`最少人数局最多 3N 次之内必定出现首位状元`, () => {
     const h = createHarness();
     fill(h, MIN_PLAYERS);
     startGame(h);
 
-    const guaranteeAt = guaranteeRollNumber(MIN_PLAYERS); // 12
+    const guaranteeAt = guaranteeRollNumber(MIN_PLAYERS); // 6
     for (let i = 1; i < guaranteeAt; i += 1) {
       const roll = playTurn(h, D_NONE);
       expect(roll.isChampionTier).toBe(false);
@@ -792,7 +794,7 @@ describe('三轮保底', () => {
     expect(h.engine.snapshot().phase).toBe('NORMAL_TURN');
     expect(h.engine.snapshot().champion.playerId).toBeNull();
 
-    // 第 12 次：无条件保底。传空数组表示不预设骰子 —— 队列为空时 rng 回落到 0.99，
+    // 第 6 次：无条件保底。传空数组表示不预设骰子 —— 队列为空时 rng 回落到 0.99，
     // 按权重抽到最顶级的状元插金花，结果依然完全确定。
     playTurn(h, []);
     const snap = h.engine.snapshot();
@@ -882,9 +884,7 @@ describe('三轮保底', () => {
 describe('再来一局', () => {
   function finishOneGame(h: Harness): void {
     playTurn(h, D_FOUR_FOUR);
-    playTurn(h, D_THREE_RED);
-    playTurn(h, D_ONE_SHOW);
-    playTurn(h, D_NONE);
+    for (let i = 0; i < MIN_PLAYERS - 1; i += 1) playTurn(h, D_NONE);
     expect(h.engine.snapshot().phase).toBe('FINISHED');
   }
 
@@ -1090,7 +1090,7 @@ describe('快照契约', () => {
       expect(me.score).toBe(5);
       expect(me.prizes.THREE_RED).toBe(1);
       expect(res.data.snapshot.phase).toBe('NORMAL_TURN');
-      expect(res.data.snapshot.inventory.counts.THREE_RED).toBe(3);
+      expect(res.data.snapshot.inventory.counts.THREE_RED).toBe(MIN_PLAYERS - 1);
     }
     h.engine.dispose();
   });
@@ -1149,7 +1149,7 @@ describe('散场回收', () => {
     const h = createHarness();
     fill(h, MIN_PLAYERS);
     startGame(h);
-    // 只掉线三个人，留一个
+    // 只掉线一个（除房主外），留一个在线
     for (const p of h.players.slice(1)) h.engine.disconnect(p.id);
 
     h.clock.advance(ABANDON_GRACE_MS * 4);

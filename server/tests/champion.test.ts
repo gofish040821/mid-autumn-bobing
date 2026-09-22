@@ -157,7 +157,7 @@ describe('buildMoonBlessingView · 月华值视图', () => {
     expect(first.stage).toBe('CHARGING');
     expect(first.progress).toBe(0);
 
-    const later = view(startRoll + 3);
+    const later = view(startRoll + 1);
     expect(later.stage).toBe('CHARGING');
     expect(later.progress).toBeGreaterThan(first.progress);
 
@@ -173,7 +173,7 @@ describe('buildMoonBlessingView · 月华值视图', () => {
   });
 
   it('临近保底时进入 FULL 并提示「月华将满 · 状元将至」', () => {
-    const near = view(guaranteeRollNumber(N) - 2);
+    const near = view(guaranteeRollNumber(N) - 1);
     expect(near.stage).toBe('FULL');
     expect(near.nearGuarantee).toBe(true);
     expect(near.text).toBe('月华将满 · 状元将至');

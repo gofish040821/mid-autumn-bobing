@@ -208,7 +208,7 @@ describe('DiceService · 状元加权抽取', () => {
  * ------------------------------------------------------------------ */
 
 describe('DiceService · 月华加持概率曲线', () => {
-  const N = MIN_PLAYERS; // 4
+  const N = MIN_PLAYERS; // 2
 
   it('第一轮（前 N 次）完全不干预，概率为 0', () => {
     for (let done = 0; done < N; done += 1) {
@@ -329,8 +329,8 @@ describe('DiceService · 普通阶段掷骰', () => {
  * ------------------------------------------------------------------ */
 
 describe('配置常量', () => {
-  it('人数上下限与题目一致（4~10）', () => {
-    expect(MIN_PLAYERS).toBe(4);
+  it('人数上下限与题目一致（2~10）', () => {
+    expect(MIN_PLAYERS).toBe(2);
     expect(MAX_PLAYERS).toBe(10);
   });
 
