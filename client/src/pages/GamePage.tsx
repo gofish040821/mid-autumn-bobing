@@ -73,7 +73,7 @@ function LastRollLine({ roll }: LastRollLineProps) {
 }
 
 export default function GamePage(): JSX.Element {
-  const snapshot = useGameStore((s) => s.snapshot)!;
+  const snapshot = useGameStore((s) => s.snapshot);
   const myId = useGameStore((s) => s.identity.playerId);
   const canRoll = useGameStore(selectCanRoll);
   const isMyTurn = useGameStore(selectIsMyTurn);
@@ -83,6 +83,12 @@ export default function GamePage(): JSX.Element {
   const rollPending = useGameStore((s) => s.rollPending);
   const championFlash = useGameStore((s) => s.championFlash);
   const connection = useGameStore((s) => s.connection);
+
+  // 快照可能在这一刻是空的：房主离席会把整桌作废，store 里的 snapshot 随之清空，
+  // 而 AnimatePresence 的退场动画期间这个组件还挂着（它正要在那 340ms 里淡出）。
+  // 少了这一句，退场那一瞬间就会读到 null 的属性、当场抛异常，
+  // 整棵组件树跟着崩掉 —— 用户看到的是一片白，而不是「这一桌散了」。
+  if (!snapshot) return <></>;
 
   const currentTurn = snapshot.currentTurn;
   const isChase = snapshot.phase === 'CHAMPION_CHASE';

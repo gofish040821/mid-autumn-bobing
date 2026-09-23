@@ -64,8 +64,20 @@ export const ABANDON_GRACE_MS = Number(process.env.ABANDON_GRACE_MS ?? 120_000);
 
 /* ---------------- 回合 ---------------- */
 
-/** 每位玩家的思考时间；超过由服务器自动代掷。 */
+/** 在线玩家的思考时间；超过由服务器自动代掷。 */
 export const TURN_TIMEOUT_MS = 30_000;
+
+/**
+ * 已经**离线**的玩家轮到时，全桌只等这么久。
+ *
+ * 人都不在了，等满 30 秒只是让一桌人陪着一个空座位干等——代掷该发生还是会
+ * 发生，区别只在于大家盯着倒计时多熬 20 秒。所以离线的座位给 10 秒就够：
+ * 足够等到一个正在重连的人（刷新页面通常一两秒就回来了），又不至于拖住牌局。
+ *
+ * 注意这是「轮到他的那一次」的等待，不是把在线玩家的思考时间也砍短了——
+ * 在线的人依然是 TURN_TIMEOUT_MS。
+ */
+export const TURN_TIMEOUT_OFFLINE_MS = 10_000;
 
 /**
  * 开奖后到下一回合之间的「演出时间」。
@@ -163,6 +175,7 @@ export const GAME_CONFIG = {
   LOBBY_GHOST_TTL_MS,
   ABANDON_GRACE_MS,
   TURN_TIMEOUT_MS,
+  TURN_TIMEOUT_OFFLINE_MS,
   MOON_BLESSING_START_ROUND,
   MOON_BLESSING_INITIAL_RATE,
   MOON_BLESSING_RATE_INCREMENT,

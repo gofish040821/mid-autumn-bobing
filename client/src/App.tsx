@@ -85,9 +85,11 @@ export default function App() {
       <ChampionFlash />
       <ToastStack />
 
-      {/* 无障碍：给屏幕阅读器一个当前阶段提示 */}
+      {/* 无障碍：给屏幕阅读器一个当前阶段提示。
+          必须以 hasJoined 打头 —— 被房主赶出来之后快照还留着上一局的残影
+          （见 gameStore 里 room:closed 的注释），只看 phase 会一直念上一局的阶段。 */}
       <span className="sr-only" aria-live="polite">
-        {phase ? `当前阶段：${phase}` : '尚未入席'}
+        {hasJoined && phase ? `当前阶段：${phase}` : '尚未入席'}
       </span>
     </div>
   );

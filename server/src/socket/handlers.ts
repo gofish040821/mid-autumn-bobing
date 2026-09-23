@@ -59,6 +59,41 @@ export function registerSocketHandlers(
     io.emit('stats:updated', { stats: statsNow(rooms, players, stats) });
   };
 
+  /**
+   * 房主走了 —— 这一桌作废，把所有人请出去。
+   *
+   * 为什么不做房主移交：这张桌是房主开的，房间码是他发出去的，牌局也是他
+   * 起的头。换个人接手，剩下的人是在玩一局「主人已经走了」的牌，谁都不知道
+   * 还该不该继续。不如干脆散伙，让剩下的人重新开一张桌来得清楚。
+   *
+   * 代价是明摆着的：房主刷新页面、切后台、手机息屏都会把全桌踢散。
+   * 这是刻意的选择，不是疏漏。
+   */
+  function closeRoom(roomId: string, message: string): void {
+    // 顺序不能反：等 socket 都退出了房间，这条通知就没人收得到了
+    io.to(roomId).emit('room:closed', { roomId, reason: 'HOST_LEFT', message });
+    // 座位凭证一并作废，否则客户端刷新后还会拿着旧 token 去进一个不存在的房间
+    players.unbindRoom(roomId);
+    io.in(roomId).socketsLeave(roomId);
+    rooms.destroy(roomId);
+  }
+
+  /**
+   * 走掉的那个人是不是房主？是的话整桌散伙。
+   *
+   * 这个判断必须在引擎做任何事**之前** —— 一旦调用了 engine.disconnect()，
+   * ensureHost() 会立刻把房主移交给别人，再想问「刚走的这位是不是房主」，
+   * 答案永远是「不是」。
+   *
+   * @returns true 表示这一桌已经被关掉，调用方不用再管座位了
+   */
+  function closeIfHostLeft(roomId: string, playerId: string, message: string): boolean {
+    const engine = rooms.get(roomId);
+    if (!engine || engine.hostId !== playerId) return false;
+    closeRoom(roomId, message);
+    return true;
+  }
+
   /* ---------------- room:create ---------------- */
 
   io.on('connection', (socket: Sock) => {
@@ -124,13 +159,16 @@ export function registerSocketHandlers(
       // 这边却还占着一个位子、人数也算他一份，而且因为 socket 已经退出了旧房间，
       // 旧桌的 disconnect 事件永远不会来，谁也清不掉他。
       if (previous && previous.roomId !== roomId) {
-        const oldEngine = rooms.get(previous.roomId);
-        if (oldEngine) {
-          // 大厅里就直接退座；牌局进行中座位是定死的，只能标记离线，
-          // 否则中途抽走一个座位会把这一局搅乱。
-          if (oldEngine.snapshot().phase === 'LOBBY') oldEngine.leave(previous.playerId);
-          else oldEngine.disconnect(previous.playerId);
+        if (!closeIfHostLeft(previous.roomId, previous.playerId, '房主换了别的桌，这一桌散了')) {
+          const oldEngine = rooms.get(previous.roomId);
+          if (oldEngine) {
+            // 大厅里就直接退座；牌局进行中座位是定死的，只能标记离线，
+            // 否则中途抽走一个座位会把这一局搅乱。
+            if (oldEngine.snapshot().phase === 'LOBBY') oldEngine.leave(previous.playerId);
+            else oldEngine.disconnect(previous.playerId);
+          }
         }
+        pushStats();
       }
 
       // 补一份快照给刚入席的这个人。
@@ -271,9 +309,11 @@ export function registerSocketHandlers(
     socket.on('disconnect', () => {
       const binding = players.unbindSocket(socket.id);
       if (!binding) return;
-      // 只让**这一张桌**知道有人掉线，别桌不受影响
-      rooms.get(binding.roomId)?.disconnect(binding.playerId);
-      // 但在线人数是全站的事，得让所有人知道
+      // 房主断开 = 整桌散伙；其余人只让**这一张桌**知道有人掉线，别桌不受影响
+      if (!closeIfHostLeft(binding.roomId, binding.playerId, '房主已离席，这一桌散了')) {
+        rooms.get(binding.roomId)?.disconnect(binding.playerId);
+      }
+      // 在线人数和桌数都是全站的事，得让所有人知道
       pushStats();
     });
   });

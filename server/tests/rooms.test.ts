@@ -482,6 +482,61 @@ describe('RoomManager · 空房间回收', () => {
  * 引擎的房间归属
  * ------------------------------------------------------------------ */
 
+describe('RoomManager · 立刻销毁（房主离席）', () => {
+  it('destroy 之后房间立刻拿不到，不用等空置超时', () => {
+    const b = createBench();
+    const created = b.rooms.create();
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    // 桌上还有人 —— sweep 在这种情况下永远不会回收它
+    joinRoom(created.engine, 'guest_1', '客一', 'sock_1');
+
+    expect(b.rooms.destroy(created.roomId)).toBe(true);
+
+    expect(b.rooms.has(created.roomId)).toBe(false);
+    expect(b.rooms.get(created.roomId)).toBeUndefined();
+    // 房间里还剩人也不是保护伞：房主说散就是散
+    expect(b.rooms.size).toBe(0);
+  });
+
+  it('销毁会把引擎的计时器一并清掉，不留悬挂定时器', () => {
+    const b = createBench();
+    const created = b.rooms.create();
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const p1 = joinRoom(created.engine, 'guest_1', '客一', 'sock_1');
+    joinRoom(created.engine, 'guest_2', '客二', 'sock_2');
+    // 大厅里有人掉线 = 挂上了一个 ghost 计时器，销毁时必须连它一起撤掉
+    created.engine.disconnect(p1.playerId);
+    expect(b.clock.pendingTimers).toBeGreaterThan(0);
+
+    expect(b.rooms.destroy(created.roomId)).toBe(true);
+    expect(() => b.clock.advance(EMPTY_ROOM_TTL_MS * 10)).not.toThrow();
+    expect(b.clock.pendingTimers).toBe(0);
+  });
+
+  it('销毁一个不存在的房间返回 false，不会顺手造一个出来', () => {
+    const b = createBench();
+    expect(b.rooms.destroy('ZZZZZ')).toBe(false);
+    expect(b.rooms.size).toBe(0);
+  });
+
+  it('只销毁指定的那一张桌，别桌不受影响', () => {
+    const b = createBench();
+    const a = b.rooms.create();
+    const c = b.rooms.create();
+    expect(a.ok && c.ok).toBe(true);
+    if (!a.ok || !c.ok) return;
+
+    expect(b.rooms.destroy(a.roomId)).toBe(true);
+    expect(b.rooms.has(a.roomId)).toBe(false);
+    expect(b.rooms.has(c.roomId)).toBe(true);
+    c.engine.dispose();
+  });
+});
+
 describe('GameEngine · 房间归属', () => {
   it('构造时传入的 roomId 会出现在快照里，并透传到 join 结果', () => {
     const engine = new GameEngine({ roomId: '7K3FZ' });

@@ -63,6 +63,21 @@ export class RoomManager {
     return this.rooms.has(roomId);
   }
 
+  /**
+   * 立刻销毁一张桌，不等空置超时。
+   *
+   * 用在「房主离席，整桌作废」上：那张桌不会再有下一任房主了，留着它
+   * 只是让所有人继续盯着一个死掉的房间。和 sweep() 的回收不同，这里
+   * 不问人多人少，调用方说散就是散。
+   */
+  destroy(roomId: string): boolean {
+    const entry = this.rooms.get(roomId);
+    if (!entry) return false;
+    entry.engine.dispose();
+    this.rooms.delete(roomId);
+    return true;
+  }
+
   /** 取一张已存在的桌；不存在返回 undefined（不顺手创建）。 */
   get(roomId: string): GameEngine | undefined {
     return this.rooms.get(roomId)?.engine;

@@ -343,6 +343,40 @@ export const useGameStore = create<GameStore>((set, get) => ({
       audio.play('game_finish');
     });
 
+    // 房主离席，这一桌作废。服务端那边座位凭证已经作废了，本地也得跟着忘掉，
+    // 否则刷新之后会拿着旧 token 去进一个已经不存在的房间，报一个莫名其妙的错。
+    socket.on('room:closed', ({ roomId: closedRoomId, message }) => {
+      clearSession(closedRoomId);
+      // 只清自己这一桌的：URL 上的房间码如果就是那张散掉的桌，也该擦掉，
+      // 不然刷新后又被带回去。人在别桌时（理论上不该收到）不动 URL。
+      if (get().roomCode === closedRoomId) {
+        clearRoomCodeFromUrl();
+        set({ roomCode: null });
+      }
+      set((s) => ({
+        hasJoined: false,
+        joining: false,
+        // 刻意**不**把 snapshot 清成 null。
+        //
+        // 退场是靠 hasJoined 触发的（App 的路由只看它），而 AnimatePresence 的
+        // mode="wait" 会把旧页面继续挂着、等它淡出完（340ms）才挂新页面。
+        // 这段窗口里如果把快照清空，游戏页整棵子树会当场渲染成空 ——
+        // 退场动画的「已完成」回调就再也不会触发，新页面永远等不到上场机会，
+        // 用户看到的是**一片空白**（页面停在 opacity:0 的旧容器里出不来）。
+        // 留一份旧快照不影响任何判断：入席页只用它挑随机雅号，下一次入席会被新快照整个覆盖。
+        // resync 遇到 INVALID_SESSION 时也是这么做的（只置 hasJoined，不动快照）。
+        //
+        // 座位凭证则必须跟着这一桌一起作废：留着它的话，这个人下一次入席会把
+        // 一张属于已销毁房间的 token 递上去。
+        identity: { ...s.identity, sessionToken: null, playerId: null },
+        rollAnim: null,
+        celebration: null,
+        championFlash: null,
+        lastError: null,
+      }));
+      get().pushToast(message, 'warn');
+    });
+
     // 全站统计和房间无关，直接覆盖，不参与 stateVersion 那套比较
     socket.on('stats:updated', ({ stats }) => set({ stats }));
 

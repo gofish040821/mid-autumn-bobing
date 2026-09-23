@@ -91,6 +91,20 @@ export interface ServerToClientEvents {
   'champion:queueUpdated': (payload: { snapshot: GameSnapshot }) => void;
   'game:finished': (payload: { snapshot: GameSnapshot }) => void;
   /**
+   * 这一桌散伙了，收到的人请退出去。
+   *
+   * 目前只有一个触发条件：**房主离席**。房主是开这张桌的人，他走了，
+   * 这桌就没有下一任主人（我们刻意不做房主移交），整桌作废。
+   *
+   * 收到这条之后，客户端那边的座位凭证也一并作废了 —— 刷新页面不会再
+   * 拿着旧 token 去进一个已经不存在的房间。要接着玩就重新开一张桌。
+   */
+  'room:closed': (payload: {
+    roomId: string;
+    reason: 'HOST_LEFT';
+    message: string;
+  }) => void;
+  /**
    * 站点统计变化。全局广播，与房间无关——所以不走 snapshot 那套。
    * 连接建立、有人首次到访、有人断开时各推一次。
    */
@@ -123,5 +137,6 @@ export const SERVER_EVENTS: readonly (keyof ServerToClientEvents)[] = [
   'champion:updated',
   'champion:queueUpdated',
   'game:finished',
+  'room:closed',
   'stats:updated',
 ] as const;

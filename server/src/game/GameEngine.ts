@@ -26,7 +26,7 @@ import type {
   TurnState,
 } from '@bobing/shared';
 
-import { ABANDON_GRACE_MS, AUTO_START_COUNTDOWN_MS, CHAMPION_BONUS, LOBBY_GHOST_TTL_MS, MAX_LOG_ENTRIES, MAX_PLAYERS, MAX_ROLL_HISTORY, MIN_PLAYERS, ROOM_ID, TURN_TIMEOUT_MS } from '../config/gameConfig.js';
+import { ABANDON_GRACE_MS, AUTO_START_COUNTDOWN_MS, CHAMPION_BONUS, LOBBY_GHOST_TTL_MS, MAX_LOG_ENTRIES, MAX_PLAYERS, MAX_ROLL_HISTORY, MIN_PLAYERS, ROOM_ID, TURN_TIMEOUT_MS, TURN_TIMEOUT_OFFLINE_MS } from '../config/gameConfig.js';
 import { buildInventory, emptyInventory } from '../config/prizes.js';
 import { systemClock } from './Clock.js';
 import type { Clock } from './Clock.js';
@@ -184,6 +184,17 @@ export class GameEngine {
     return this.state.players.length;
   }
 
+  /**
+   * 当前房主的 playerId，没有房主时为 null。
+   *
+   * 刻意不叫 `snapshot().hostId` —— 那个要现攒一整份快照（含库存、排行榜、
+   * 日志），而这里只想知道「谁是房主」。断线处理在热路径上，不该为一个人
+   * 字付出整份快照的代价。
+   */
+  get hostId(): string | null {
+    return this.state.players.find((p) => p.isHost)?.id ?? null;
+  }
+
   snapshot(): GameSnapshot {
     const playerCount = this.state.players.length;
     const championFound = this.state.champion.playerId !== null;
@@ -328,12 +339,24 @@ export class GameEngine {
     this.flush(events);
   }
 
+  /**
+   * 这一次回合该等多久：在线的人给足思考时间，已经离线的人只等一小会儿。
+   *
+   * 代掷本身两边都会发生，区别只在于全桌要盯着倒计时熬多久。
+   */
+  private turnWaitFor(playerId: string): number {
+    const player = this.findPlayer(playerId);
+    return player && !player.online ? TURN_TIMEOUT_OFFLINE_MS : TURN_TIMEOUT_MS;
+  }
+
   private scheduleTurnTimeout(): void {
     this.clearTurnTimer();
+    const turn = this.state.currentTurn;
+    const wait = turn ? this.turnWaitFor(turn.playerId) : TURN_TIMEOUT_MS;
     this.turnTimer = this.clock.setTimeout(() => {
       this.turnTimer = null;
       this.handleTurnTimeout();
-    }, TURN_TIMEOUT_MS);
+    }, wait);
   }
 
   private handleTurnTimeout(): void {
@@ -460,6 +483,14 @@ export class GameEngine {
       this.ensureHost();
       this.scheduleGhostRemoval(playerId);
       this.maybeScheduleAutoStart(events);
+    }
+
+    // 正好轮到他掉线 —— 把剩下的等待缩短到「离线档」，别让全桌陪着一个
+    // 空座位熬满 30 秒。deadlineAt 一起改，否则客户端倒计时会和服务端对不上。
+    const turn = this.state.currentTurn;
+    if (turn && turn.playerId === playerId && turn.status === 'WAITING') {
+      turn.deadlineAt = this.clock.now() + TURN_TIMEOUT_OFFLINE_MS;
+      this.scheduleTurnTimeout();
     }
 
     // 牌局进行中不设房主移交（座位是定死的），但全员走光要让这局能自然作废
@@ -661,7 +692,7 @@ export class GameEngine {
       seat: player.seat,
       status: 'WAITING',
       startedAt: now,
-      deadlineAt: now + TURN_TIMEOUT_MS,
+      deadlineAt: now + this.turnWaitFor(player.id),
       kind,
       rollIndex: this.state.stats.totalRolls + 1,
       chaseIndex: kind === 'CHASE' ? this.state.champion.chaseDone + 1 : 0,

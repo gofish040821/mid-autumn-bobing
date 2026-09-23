@@ -65,6 +65,26 @@ export class PlayerManager {
     return binding;
   }
 
+  /**
+   * 摘掉某个房间里**所有** socket 的绑定，返回被摘掉的 socket id。
+   *
+   * 房间整体作废时用（房主离席）。少这一步的话，那些 socket 还留着
+   * 「我在某某房间」的映射，之后每一条动作都会被路由到一个已经销毁的引擎上。
+   */
+  unbindRoom(roomId: string): string[] {
+    const sockets: string[] = [];
+    for (const [socketId, binding] of this.socketToBinding) {
+      if (binding.roomId !== roomId) continue;
+      sockets.push(socketId);
+      this.socketToBinding.delete(socketId);
+      const composite = PlayerManager.key(binding.roomId, binding.playerId);
+      if (this.playerToSocket.get(composite) === socketId) {
+        this.playerToSocket.delete(composite);
+      }
+    }
+    return sockets;
+  }
+
   /** 某个房间里有多少个活着的连接（用于散场判断与调试）。 */
   countInRoom(roomId: string): number {
     let n = 0;

@@ -20,6 +20,7 @@ import {
   MOON_BLESSING_RATE_INCREMENT,
   MOON_BLESSING_START_ROUND,
   TURN_TIMEOUT_MS,
+  TURN_TIMEOUT_OFFLINE_MS,
 } from '../src/config/gameConfig';
 import {
   computeBlessingRate,
@@ -342,6 +343,13 @@ describe('配置常量', () => {
 
   it('回合超时为 30 秒', () => {
     expect(TURN_TIMEOUT_MS).toBe(30_000);
+  });
+
+  it('离线档必须是「更短的等待」，否则这个功能没有意义', () => {
+    expect(TURN_TIMEOUT_OFFLINE_MS).toBe(10_000);
+    // 两边都写死数值还不够：真正要守住的是这个不等关系。
+    // 哪天有人手滑把离线档调到比在线档还长，这一条会先炸。
+    expect(TURN_TIMEOUT_OFFLINE_MS).toBeLessThan(TURN_TIMEOUT_MS);
   });
 
   it('月华参数自洽：初始值 < 上限，且增量能爬到上限', () => {

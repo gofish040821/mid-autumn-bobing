@@ -63,6 +63,7 @@ const ALL_EVENTS = [
   'champion:queueUpdated',
   'game:finished',
   'stats:updated',
+  'room:closed',
 ];
 
 /** 一个真实客户端：记下收到的每一条广播，便于断言「谁不该收到什么」。 */
@@ -76,6 +77,8 @@ function makeClient(label) {
     sessionToken: null,
     snap: null,
     events: [],
+    /** 最近一次收到的「这一桌散了」通知，没收到过就是 null。 */
+    closed: null,
   };
   for (const name of ALL_EVENTS) {
     socket.on(name, (payload) => {
@@ -83,6 +86,9 @@ function makeClient(label) {
       if (payload?.snapshot) state.snap = payload.snapshot;
     });
   }
+  socket.on('room:closed', (payload) => {
+    state.closed = payload;
+  });
   return state;
 }
 
@@ -284,16 +290,15 @@ async function main() {
   /* ---------------- 7. 换桌：不能继续偷听旧桌 ---------------- */
   console.log('\n[7] 中途换桌');
 
-  const createdC = await createRoom((() => {
-    const c = makeClient('C房主');
-    clients.push(c);
-    return c.socket;
-  })());
-  const createdD = await createRoom((() => {
-    const d = makeClient('D房主');
-    clients.push(d);
-    return d.socket;
-  })());
+  // 丙 / 丁两桌各留一位**不动的房主**。
+  //
+  // 这不是凑数：房主一离席整桌就作废，要是让「换桌的人」自己当房主，
+  // 他一走旧桌就散了，下面那些「人走了但桌还在」的断言全都测不到东西了。
+  const cHost = makeClient('C房主');
+  const dHost = makeClient('D房主');
+  clients.push(cHost, dHost);
+  const createdC = await createRoom(cHost.socket);
+  const createdD = await createRoom(dHost.socket);
   const roomC = createdC?.data?.roomId;
   const roomD = createdD?.data?.roomId;
   check('又开了两张干净的空桌（C / D）', Boolean(roomC && roomD && roomC !== roomD), `${roomC} / ${roomD}`);
@@ -301,6 +306,8 @@ async function main() {
   const mover = makeClient('换桌的人');
   const cRegular = makeClient('C常驻');
   clients.push(mover, cRegular);
+  await joinRoom(cHost, roomC, '丙桌房主');
+  await joinRoom(dHost, roomD, '丁桌房主');
   await joinRoom(cRegular, roomC, '丙桌常驻');
   const movedIn = await joinRoom(mover, roomC, '丙桌过客');
   check('先进丙桌', movedIn?.ok === true, movedIn?.message);
@@ -314,11 +321,11 @@ async function main() {
   // 而且因为 socket 已经退出旧房间，它的 disconnect 永远不会来，谁也清不掉。
   await sleep(300);
   const statsC = (await roomStats()).rooms.find((r) => r.roomId === roomC);
-  check('旧桌的人数已经扣掉了他', statsC?.players === 1, JSON.stringify(statsC));
-  check('旧桌没留下「在线」的幽灵座位', statsC?.online === 1, JSON.stringify(statsC));
+  check('旧桌的人数已经扣掉了他', statsC?.players === 2, JSON.stringify(statsC));
+  check('旧桌没留下「在线」的幽灵座位', statsC?.online === 2, JSON.stringify(statsC));
   check(
     '丙桌常驻的人看到的是「人走了」',
-    cRegular.snap?.players?.length === 1 &&
+    cRegular.snap?.players?.length === 2 &&
       !cRegular.snap.players.some((p) => p.nickname === '丙桌过客'),
     JSON.stringify(cRegular.snap?.players?.map((p) => p.nickname)),
   );
@@ -438,6 +445,116 @@ async function main() {
     afterAll?.visitors === beforeAll.visitors && afterAll.visitors > 0,
     `${beforeAll.visitors} → ${afterAll?.visitors}`,
   );
+
+  /* ---------------- 9. 房主离席：整桌作废 ---------------- */
+  console.log('\n[9] 房主离席，整桌作废');
+
+  const hostE = makeClient('E房主');
+  const eGuest1 = makeClient('E客一');
+  const eGuest2 = makeClient('E客二');
+  clients.push(hostE, eGuest1, eGuest2);
+
+  const createdE = await createRoom(hostE.socket);
+  const roomE = createdE?.data?.roomId;
+  check('E 桌开起来了', Boolean(roomE), JSON.stringify(createdE));
+  await joinRoom(hostE, roomE, 'E桌房主');
+  await joinRoom(eGuest1, roomE, 'E桌客一');
+  await joinRoom(eGuest2, roomE, 'E桌客二');
+  await sleep(300);
+
+  const statsE = (await roomStats()).rooms.find((r) => r.roomId === roomE);
+  check('E 桌三个人都在', statsE?.players === 3, JSON.stringify(statsE));
+
+  // 旁边再留一张别桌，用来证明「散的只有这一桌」
+  const hostF = makeClient('F房主');
+  clients.push(hostF);
+  const createdF = await createRoom(hostF.socket);
+  const roomF = createdF?.data?.roomId;
+  await joinRoom(hostF, roomF, 'F桌房主');
+  await sleep(200);
+
+  for (const c of clients) {
+    c.events.length = 0;
+    c.closed = null;
+  }
+
+  hostE.socket.close();
+  await sleep(700);
+
+  check('留座的人收到了「这一桌散了」', eGuest1.closed !== null, JSON.stringify(eGuest1.events));
+  check('另一位留座的人也收到了', eGuest2.closed !== null, JSON.stringify(eGuest2.events));
+  check(
+    '作废原因是「房主走了」，并且带了一句能读懂的话',
+    eGuest1.closed?.reason === 'HOST_LEFT' &&
+      typeof eGuest1.closed?.message === 'string' &&
+      eGuest1.closed.message.length > 0,
+    JSON.stringify(eGuest1.closed),
+  );
+  check('通知里带的是这张桌的房间码', eGuest1.closed?.roomId === roomE, String(eGuest1.closed?.roomId));
+
+  const roomsAfterE = await roomStats();
+  check(
+    'E 桌从房间列表里彻底消失（不是留着一个死房间）',
+    !roomsAfterE.rooms.some((r) => r.roomId === roomE),
+    JSON.stringify(roomsAfterE.rooms.map((r) => r.roomId)),
+  );
+  check(
+    '别桌不受影响，F 桌还在',
+    roomsAfterE.rooms.some((r) => r.roomId === roomF),
+    JSON.stringify(roomsAfterE.rooms.map((r) => r.roomId)),
+  );
+  check('别桌的人没被误伤', hostF.closed === null, JSON.stringify(hostF.events));
+
+  // 座位凭证一并作废 —— 否则客户端刷新后会拿着旧 token 去进一个不存在的房间，
+  // 收到的是一句莫名其妙的「身份已失效」，而不是「这一桌散了」
+  const eResync = await ask(eGuest1.socket, 'room:sync', { sessionToken: eGuest1.sessionToken });
+  check('旧桌的座位凭证已经作废', eResync?.ok === false, JSON.stringify(eResync));
+
+  const hostG = makeClient('G房主');
+  clients.push(hostG);
+  const createdG = await createRoom(hostG.socket);
+  const roomG = createdG?.data?.roomId;
+  const eRejoin = await joinRoom(eGuest1, roomG, 'E桌客一');
+  check('散伙的人可以另外入席一张新桌', eRejoin?.ok === true, eRejoin?.message);
+
+  // 第二条触发路径：房主自己换桌，旧桌同样作废
+  console.log('\n[9b] 房主换桌，旧桌同样作废');
+  const hostH = makeClient('H房主');
+  const hGuest = makeClient('H客');
+  clients.push(hostH, hGuest);
+  const createdH = await createRoom(hostH.socket);
+  const roomH = createdH?.data?.roomId;
+  await joinRoom(hostH, roomH, 'H桌房主');
+  await joinRoom(hGuest, roomH, 'H桌客');
+  await sleep(200);
+
+  const createdI = await createRoom(hostH.socket);
+  const roomI = createdI?.data?.roomId;
+  for (const c of clients) {
+    c.events.length = 0;
+    c.closed = null;
+  }
+
+  const hMoved = await joinRoom(hostH, roomI, 'H桌房主');
+  check('房主换到了 I 桌', hMoved?.ok === true, hMoved?.message);
+  await sleep(500);
+
+  check(
+    '房主换桌也会让旧桌散伙',
+    hGuest.closed?.reason === 'HOST_LEFT',
+    JSON.stringify(hGuest.closed ?? hGuest.events),
+  );
+  check(
+    '旧桌 H 从列表里消失',
+    !(await roomStats()).rooms.some((r) => r.roomId === roomH),
+    roomH,
+  );
+  check(
+    '换过去的新桌 I 好好的',
+    (await roomStats()).rooms.some((r) => r.roomId === roomI),
+    roomI,
+  );
+  check('房主自己不会收到「你被赶出去了」', hostH.closed === null, JSON.stringify(hostH.events));
 
   /* ---------------- 收尾 ---------------- */
   for (const c of clients) c.socket.close();

@@ -16,6 +16,7 @@ import {
   MAX_PLAYERS,
   MIN_PLAYERS,
   TURN_TIMEOUT_MS,
+  TURN_TIMEOUT_OFFLINE_MS,
 } from '../src/config/gameConfig';
 import { FakeClock } from '../src/game/Clock';
 import { GameEngine } from '../src/game/GameEngine';
@@ -417,6 +418,51 @@ describe('回合与防重复', () => {
     h.clock.advance(TURN_TIMEOUT_MS);
     const snap = h.engine.snapshot();
     expect(snap.stats.totalRolls).toBe(1);
+    expect(snap.lastRoll?.playerId).toBe(current);
+    expect(snap.lastRoll?.auto).toBe(true);
+  });
+
+  it('离线玩家轮到时只等 10 秒，在线玩家仍是 30 秒', () => {
+    // 座位 1 先手。让座位 2 掉线，再照常打完座位 1 这一手 ——
+    // 轮到座位 2 时应该走「离线档」，而不是让全桌陪一个空座位干等 30 秒。
+    const offline = h.players[1]!;
+    h.engine.disconnect(offline.id);
+    playTurn(h, D_NONE);
+
+    const offlineTurn = h.engine.snapshot().currentTurn!;
+    expect(offlineTurn.playerId).toBe(offline.id);
+    expect(offlineTurn.deadlineAt - offlineTurn.startedAt).toBe(TURN_TIMEOUT_OFFLINE_MS);
+
+    // 再转一圈回到在线玩家，等待时间恢复原样 —— 离线档只针对离线的那一位，
+    // 不是把所有人的思考时间都砍短了。
+    for (let i = 0; i < 3; i += 1) playTurn(h, D_NONE);
+    const onlineTurn = h.engine.snapshot().currentTurn!;
+    expect(onlineTurn.playerId).toBe(h.players[0]!.id);
+    expect(onlineTurn.deadlineAt - onlineTurn.startedAt).toBe(TURN_TIMEOUT_MS);
+  });
+
+  it('正好轮到他时掉线，剩下的等待立刻缩短到 10 秒', () => {
+    const current = currentPlayerId(h);
+    const before = h.engine.snapshot().currentTurn!;
+    expect(before.deadlineAt - before.startedAt).toBe(TURN_TIMEOUT_MS);
+
+    h.engine.disconnect(current);
+
+    // deadlineAt 必须一起改，否则客户端倒计时和服务端的表对不上
+    const after = h.engine.snapshot().currentTurn!;
+    expect(after.deadlineAt - h.clock.now()).toBe(TURN_TIMEOUT_OFFLINE_MS);
+  });
+
+  it('离线玩家的回合 10 秒就代掷，不用等满 30 秒', () => {
+    const current = currentPlayerId(h);
+    h.engine.disconnect(current);
+
+    h.clock.advance(TURN_TIMEOUT_OFFLINE_MS - 1);
+    expect(h.engine.snapshot().stats.autoRolls).toBe(0);
+
+    h.clock.advance(1);
+    const snap = h.engine.snapshot();
+    expect(snap.stats.autoRolls).toBe(1);
     expect(snap.lastRoll?.playerId).toBe(current);
     expect(snap.lastRoll?.auto).toBe(true);
   });

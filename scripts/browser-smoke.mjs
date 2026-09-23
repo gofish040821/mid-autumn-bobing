@@ -483,8 +483,61 @@ async function main() {
     mobileProbe.report();
     await mobile.close();
 
-    /* ---------------- 6. 所有探针统一体检 ---------------- */
-    console.log('\n[6] 控制台与网络体检');
+    /* ---------------- 6. 房主离席：全桌被请回入席页 ---------------- */
+    // 这一段只能靠真浏览器验：服务端把 room:closed 发出去之后，
+    // 客户端到底有没有把「入席」这一页还回来、地址栏里的死房间码有没有清掉，
+    // socket 层的脚本看不见。
+    console.log('\n[6] 房主离席，全桌被请回入席页');
+
+    const witness = others[0];
+    const urlBefore = witness.page.url();
+    check('离席前，客人还在游戏页里', urlBefore.includes(roomCode), urlBefore);
+
+    await hostPage.close();
+
+    // 提示条只活 4.2 秒，得赶在它消失之前抓
+    let toastText = '';
+    for (let i = 0; i < 24; i += 1) {
+      const t = await witness.page.locator('.common-toast__text').allInnerTexts().catch(() => []);
+      if (t.length > 0) {
+        toastText = t.join(' ');
+        break;
+      }
+      await witness.page.waitForTimeout(100);
+    }
+    check(`客人被明确告知了这一桌散了（「${toastText}」）`, /房主|散了/.test(toastText), toastText || '(没等到提示条)');
+
+    // 入席页要等退场动画（340ms）走完才会挂上来 —— 轮询等它，别写死一个等待时长
+    const joinBack = witness.page.getByPlaceholder(/取个雅号/);
+    let joinBackVisible = false;
+    for (let i = 0; i < 40; i += 1) {
+      if (await joinBack.first().isVisible().catch(() => false)) {
+        joinBackVisible = true;
+        break;
+      }
+      await witness.page.waitForTimeout(100);
+    }
+    check('客人被请回了入席页', joinBackVisible);
+
+    check(
+      '地址栏里的死房间码已经清掉（否则刷新一次还会去撞一个不存在的房间）',
+      !witness.page.url().includes(roomCode),
+      witness.page.url(),
+    );
+
+    // 入席页上不该还留着上一局的牌桌残影
+    check('博饼按钮已经不在了', !(await witness.page.locator('.btn-roll').isVisible().catch(() => false)));
+    check(
+      '页面标题换成了「入席」',
+      (await witness.page.locator('.lobby-join__title').innerText().catch(() => '')) === '入席',
+    );
+    check(
+      '页面回到了「还没选桌」的状态（不是停在一张已经散伙的桌上）',
+      (await witness.page.locator('.lobby-room__create').isVisible().catch(() => false)) === true,
+    );
+
+    /* ---------------- 7. 所有探针统一体检 ---------------- */
+    console.log('\n[7] 控制台与网络体检');
     for (const p of [hostProbe, ...others]) p.report();
 
     /* ---------------- 收尾 ---------------- */
