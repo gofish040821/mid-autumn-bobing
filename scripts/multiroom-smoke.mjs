@@ -62,6 +62,7 @@ const ALL_EVENTS = [
   'champion:updated',
   'champion:queueUpdated',
   'game:finished',
+  'stats:updated',
 ];
 
 /** 一个真实客户端：记下收到的每一条广播，便于断言「谁不该收到什么」。 */
@@ -344,6 +345,99 @@ async function main() {
   await joinRoom(dNew, roomD, '丁桌新人');
   await sleep(300);
   check('新桌的广播照收不误', mover.events.includes('room:playerJoined'), JSON.stringify(mover.events));
+
+  /* ---------------- 8. 站点统计 ---------------- */
+  console.log('\n[8] 站点统计（累计到访 / 此刻在线）');
+
+  const siteStats = async () => {
+    const res = await fetch(`${URL}/api/stats`);
+    return res.ok ? (await res.json()).stats : null;
+  };
+
+  const base = await siteStats();
+  check(
+    '/api/stats 给出三个数字',
+    typeof base?.visitors === 'number' &&
+      typeof base?.online === 'number' &&
+      typeof base?.rooms === 'number',
+    JSON.stringify(base),
+  );
+  check('/api/health 也带上了到访人数', typeof health.visitors === 'number', String(health.visitors));
+
+  // 全新面孔 → 到访人数 +1
+  const rookie = makeClient(`统计新人_${process.pid}`);
+  clients.push(rookie);
+  for (const c of clients) c.events.length = 0;
+  const rookieJoined = await joinRoom(rookie, roomD, '统计新人');
+  check('新面孔入席成功', rookieJoined?.ok === true, rookieJoined?.message);
+  await sleep(300);
+
+  const afterRookie = await siteStats();
+  check(
+    '全新到访者让「累计到访」+1',
+    afterRookie?.visitors === base.visitors + 1,
+    `${base.visitors} → ${afterRookie?.visitors}`,
+  );
+  check(
+    '刚连上就收到了 stats:updated（连接时补推一份）',
+    rookie.events.includes('stats:updated'),
+    JSON.stringify(rookie.events),
+  );
+
+  // 老面孔换桌 → 不该被重复计为到访，且在线人数不该因为「一进一出」而漂移
+  for (const c of clients) c.events.length = 0;
+  const beforeMove = await siteStats();
+  const movedBack = await joinRoom(mover, roomC, '丙桌过客');
+  check('老面孔换桌依然能进', movedBack?.ok === true, movedBack?.message);
+  await sleep(300);
+
+  const afterMove = await siteStats();
+  check(
+    '同一个人换桌不会被重复计为到访',
+    afterMove?.visitors === beforeMove.visitors,
+    `${beforeMove.visitors} → ${afterMove?.visitors}`,
+  );
+  check(
+    '换桌时在线人数不漂移（旧桌减一、新桌加一）',
+    afterMove?.online === beforeMove.online,
+    `${beforeMove.online} → ${afterMove?.online}`,
+  );
+
+  // 有人退场 → 在线人数 -1，但到访人数不动
+  for (const c of clients) c.events.length = 0;
+  const beforeLeave = await siteStats();
+  cRegular.socket.close();
+  await sleep(600);
+
+  const afterLeave = await siteStats();
+  check(
+    '有人退场后「此刻在线」-1',
+    afterLeave?.online === beforeLeave.online - 1,
+    `${beforeLeave.online} → ${afterLeave?.online}`,
+  );
+  check(
+    '退场不会把「累计到访」也减掉',
+    afterLeave?.visitors === beforeLeave.visitors,
+    `${beforeLeave.visitors} → ${afterLeave?.visitors}`,
+  );
+  check(
+    '留在桌上的人被告知了在线人数变化',
+    rookie.events.includes('stats:updated'),
+    JSON.stringify(rookie.events),
+  );
+
+  // 全站散场：到访人数是被记住的，在线人数才是即时的 —— 两者不能混为一谈
+  const beforeAll = await siteStats();
+  for (const c of clients) c.socket.close();
+  await sleep(800);
+
+  const afterAll = await siteStats();
+  check('人都走光了，「此刻在线」归零', afterAll?.online === 0, String(afterAll?.online));
+  check(
+    '「累计到访」不跟着归零（它记的是来过，不是在场）',
+    afterAll?.visitors === beforeAll.visitors && afterAll.visitors > 0,
+    `${beforeAll.visitors} → ${afterAll?.visitors}`,
+  );
 
   /* ---------------- 收尾 ---------------- */
   for (const c of clients) c.socket.close();

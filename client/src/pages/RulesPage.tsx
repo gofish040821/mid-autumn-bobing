@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import type { Variants } from 'framer-motion';
 
 import { useGameStore } from '../stores/gameStore';
+import SiteFooter from '../components/Common/SiteFooter';
 import './RulesPage.css';
 
 /** 与 theme.css 的 --ease-soft 保持一致的缓动曲线。 */
@@ -203,6 +204,8 @@ export default function RulesPage(): JSX.Element {
       </div>
 
       <p className="rules-foot">本桌最多十五人 · 一局约五到十分钟 · 匿名参与，无需注册</p>
+
+      <SiteFooter />
     </motion.div>
   );
 }

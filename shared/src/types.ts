@@ -292,6 +292,22 @@ export interface CreateRoomResult {
   roomId: string;
 }
 
+/**
+ * 站点统计。
+ *
+ * `visitors` 是**自本次开服以来**的去重到访人数，不是历史总量——
+ * 统计和房间一样全在内存里，进程重启就归零。界面文案与文档都照实写，
+ * 不把它包装成「累计至今」，否则重启之后那个数字就是在说谎。
+ */
+export interface SiteStats {
+  /** 累计到访人数（按浏览器身份 guestId 去重，换桌/重连/多标签页只算一次） */
+  visitors: number;
+  /** 此刻坐在桌上的人（已入席且连接还在） */
+  online: number;
+  /** 此刻开着的桌数 */
+  rooms: number;
+}
+
 export interface RollAck {
   accepted: boolean;
   turnId: string;

@@ -21,10 +21,17 @@ import {
   setNicknamePayloadSchema,
   syncPayloadSchema,
 } from '@bobing/shared';
-import type { Ack, ClientToServerEvents, GameSnapshot, ServerToClientEvents } from '@bobing/shared';
+import type {
+  Ack,
+  ClientToServerEvents,
+  GameSnapshot,
+  ServerToClientEvents,
+  SiteStats,
+} from '@bobing/shared';
 import type { GameEngine } from '../game/GameEngine.js';
 import type { PlayerManager } from '../room/PlayerManager.js';
 import type { RoomManager } from '../room/RoomManager.js';
+import type { SiteStats as SiteStatsService } from '../stats/SiteStats.js';
 import { broadcastAll } from './broadcast.js';
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -37,10 +44,27 @@ function engineOf(rooms: RoomManager, players: PlayerManager, socket: Sock): Gam
   return rooms.get(binding.roomId);
 }
 
-export function registerSocketHandlers(io: IO, rooms: RoomManager, players: PlayerManager): void {
+/** 组装当前统计。在线人数取「已入席且连接还在」的人数，不是裸连接数。 */
+function statsNow(rooms: RoomManager, players: PlayerManager, stats: SiteStatsService): SiteStats {
+  return stats.snapshot(players.size, rooms.size);
+}
+
+export function registerSocketHandlers(
+  io: IO,
+  rooms: RoomManager,
+  players: PlayerManager,
+  stats: SiteStatsService,
+): void {
+  const pushStats = (): void => {
+    io.emit('stats:updated', { stats: statsNow(rooms, players, stats) });
+  };
+
   /* ---------------- room:create ---------------- */
 
   io.on('connection', (socket: Sock) => {
+    // 新连上的人先拿一份当前统计，不用等下一次事件
+    socket.emit('stats:updated', { stats: statsNow(rooms, players, stats) });
+
     socket.on('room:create', (_payload, ack) => {
       const created = rooms.create();
       if (!created.ok) {
@@ -118,6 +142,10 @@ export function registerSocketHandlers(io: IO, rooms: RoomManager, players: Play
       // （满员、身份冲突）完全不碰这个 socket 的房间归属，换桌失败不至于
       // 把人从原来的桌上踢下来。
       socket.emit('room:snapshot', { snapshot: engine.snapshot() });
+
+      // 记一次到访。recordVisit 内部按 guestId 去重，只有真·新面孔才值得
+      // 惊动所有人广播一次——同一个人的重连、换桌不该让全站刷屏。
+      if (stats.recordVisit(guestId)) pushStats();
 
       ack({ ok: true, data: result.data });
     });
@@ -245,6 +273,8 @@ export function registerSocketHandlers(io: IO, rooms: RoomManager, players: Play
       if (!binding) return;
       // 只让**这一张桌**知道有人掉线，别桌不受影响
       rooms.get(binding.roomId)?.disconnect(binding.playerId);
+      // 但在线人数是全站的事，得让所有人知道
+      pushStats();
     });
   });
 }

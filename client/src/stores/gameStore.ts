@@ -18,7 +18,7 @@ import {
   isValidRoomCode,
   normalizeRoomCode,
 } from '@bobing/shared';
-import type { GameSnapshot, LocalIdentity, PlayerState, RollRecord } from '@bobing/shared';
+import type { GameSnapshot, LocalIdentity, PlayerState, RollRecord, SiteStats } from '@bobing/shared';
 
 import { audio } from '../audio/AudioManager';
 import {
@@ -104,6 +104,14 @@ interface GameStore {
 
   /* ---- 服务端状态镜像 ---- */
   snapshot: GameSnapshot | null;
+  /**
+   * 站点统计（累计到访 / 此刻在线）。
+   *
+   * 它和房间无关，是**全站**的数字，所以既不进 snapshot 也不随房间切换重置，
+   * 而是由服务端单独广播。还没收到第一份时为 null —— 界面宁可先不显示，
+   * 也不要凭空画一个 0 出来，那个 0 会被当成真的。
+   */
+  stats: SiteStats | null;
 
   /* ---- 演出状态 ---- */
   rollAnim: RollAnimation | null;
@@ -184,6 +192,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   lastError: null,
   serverTimeOffset: 0,
   snapshot: null,
+  stats: null,
 
   rollAnim: null,
   celebration: null,
@@ -333,6 +342,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       applySnapshot(snapshot);
       audio.play('game_finish');
     });
+
+    // 全站统计和房间无关，直接覆盖，不参与 stateVersion 那套比较
+    socket.on('stats:updated', ({ stats }) => set({ stats }));
 
     /* ---- 揭晓 ---- */
     function reveal(roll: RollRecord): void {

@@ -20,6 +20,7 @@ import {
 import type { PlayerState } from '@bobing/shared';
 
 import TopBar from '../components/Common/TopBar';
+import SiteFooter from '../components/Common/SiteFooter';
 import PlayerList from '../components/PlayerList/PlayerList';
 import { useGameStore, selectIsHost } from '../stores/gameStore';
 import { buildInviteLink } from '../lib/roomLink';
@@ -355,6 +356,8 @@ export default function LobbyPage(): JSX.Element {
 
           <p className="lobby-join__hint">无需注册，昵称与座位只保存在你自己的浏览器里</p>
         </motion.section>
+
+        <SiteFooter />
       </div>
     );
   }
@@ -364,6 +367,7 @@ export default function LobbyPage(): JSX.Element {
       <div className="page lobby-page">
         <TopBar />
         <div className="scroll scroll--plain lobby-loading t-muted">正在入席，请稍候……</div>
+        <SiteFooter />
       </div>
     );
   }
@@ -497,6 +501,8 @@ export default function LobbyPage(): JSX.Element {
           </div>
         )}
       </section>
+
+      <SiteFooter />
     </div>
   );
 }

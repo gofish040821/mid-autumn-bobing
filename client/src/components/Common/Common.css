@@ -376,3 +376,103 @@
     letter-spacing: 0.06em;
   }
 }
+
+/* ==========================================================================
+   5. 页脚 SiteFooter
+   统计数字 + 创作者署名，压在一行里，字号比正文小一档。
+   ========================================================================== */
+
+.common-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 22px;
+  padding: 14px 12px 18px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.common-footer__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  font-family: var(--font-song);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+}
+
+.common-footer__label {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+}
+
+.common-footer__creator {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--gold);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--gold-line);
+  padding-bottom: 1px;
+  transition: color 0.2s var(--ease-soft), border-color 0.2s var(--ease-soft);
+}
+
+.common-footer__creator:hover,
+.common-footer__creator:focus-visible {
+  color: var(--cinnabar);
+  border-bottom-color: var(--cinnabar);
+}
+
+.common-footer__icon {
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+
+.common-footer__stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.common-footer__num {
+  font-family: var(--font-song);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  /* 数字变化时不要抖动 */
+  min-width: 1.2em;
+  text-align: right;
+}
+
+.common-footer__dot {
+  color: var(--line-strong);
+}
+
+.common-footer__note {
+  flex-basis: 100%;
+  font-size: 11px;
+  opacity: 0.72;
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 375px) {
+  .common-footer {
+    margin-top: 16px;
+    padding: 12px 8px 16px;
+  }
+  .common-footer__row {
+    font-size: 11px;
+    letter-spacing: 0.02em;
+  }
+  .common-footer__num {
+    font-size: 13px;
+  }
+}

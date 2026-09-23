@@ -339,6 +339,36 @@ async function main() {
     );
     await shot(hostProbe, '03-lobby-four-players');
 
+    /* ---- 2b. 页脚：创作者署名 + 站点统计 ---- */
+    const footer = hostPage.locator('.common-footer');
+    check('页脚可见', await footer.isVisible().catch(() => false));
+
+    const credit = hostPage.locator('.common-footer__creator');
+    check(
+      '页脚署名指向 GitHub 的 gofish040821',
+      (await credit.getAttribute('href')) === 'https://github.com/gofish040821',
+      await credit.getAttribute('href'),
+    );
+    check(
+      '页脚署名显示成 @gofish040821',
+      ((await credit.innerText()) ?? '').includes('@gofish040821'),
+      await credit.innerText(),
+    );
+
+    // 署名只用文字和内联 SVG。头像之类的做法会 hotlink 来源不明的图片，
+    // 既违反项目约束，也会让上面「没有访问任何外部网络」那条断言挂掉。
+    const footerImages = await footer.locator('img').count();
+    check('页脚没有引入任何图片（不 hotlink 头像）', footerImages === 0, `${footerImages} 张`);
+
+    const footerText = await footer.innerText();
+    check('页脚显示「累计到访」数字', /\d+\s*人到访/.test(footerText), footerText);
+    check('页脚显示「此刻在线」数字', /\d+\s*人在席/.test(footerText), footerText);
+    check('页脚说明了统计从本次开服算起', footerText.includes('自本次开服以来'), footerText);
+
+    // 四人已经入席，此刻在线至少是 4
+    const onlineNow = Number(/(\d+)\s*人在席/.exec(footerText)?.[1] ?? -1);
+    check('「此刻在线」的人数覆盖了已入席的四个人', onlineNow >= 4, `${onlineNow}`);
+
     /* ---------------- 3. 开局 ---------------- */
     console.log('\n[3] 开局与骰子');
     const startBtn = hostPage.locator('.lobby-start');

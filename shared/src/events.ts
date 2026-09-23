@@ -13,6 +13,7 @@ import type {
   PlayerState,
   RollAck,
   RollRecord,
+  SiteStats,
 } from './types.js';
 
 /* ------------------------------------------------------------------ *
@@ -89,6 +90,11 @@ export interface ServerToClientEvents {
   }) => void;
   'champion:queueUpdated': (payload: { snapshot: GameSnapshot }) => void;
   'game:finished': (payload: { snapshot: GameSnapshot }) => void;
+  /**
+   * 站点统计变化。全局广播，与房间无关——所以不走 snapshot 那套。
+   * 连接建立、有人首次到访、有人断开时各推一次。
+   */
+  'stats:updated': (payload: { stats: SiteStats }) => void;
 }
 
 export interface InterServerEvents {
@@ -117,4 +123,5 @@ export const SERVER_EVENTS: readonly (keyof ServerToClientEvents)[] = [
   'champion:updated',
   'champion:queueUpdated',
   'game:finished',
+  'stats:updated',
 ] as const;

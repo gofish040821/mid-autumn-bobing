@@ -294,8 +294,14 @@ describe('DiceService · 普通阶段掷骰', () => {
   });
 
   it('概率命中时会加持出一个真正的 Champion Tier', () => {
-    // 第 2 轮第一次：rate = MOON_BLESSING_INITIAL_RATE；掷出无奖的骰子后用 0.01 命中加持
-    const rng = queueRng([...faces(2, 3, 5, 6, 1, 2), 0.01, 0.3]);
+    // 第 2 轮第一次：rate = MOON_BLESSING_INITIAL_RATE。
+    // 判定值取 rate 的一半而不是写死一个常数 —— 这个 fixture 只要「必中」就行，
+    // 用常数的话每次调参都得回来改一遍，早晚有人漏掉。
+    const rng = queueRng([
+      ...faces(2, 3, 5, 6, 1, 2),
+      MOON_BLESSING_INITIAL_RATE / 2,
+      0.3,
+    ]);
     const outcome = rollNormalPhase(MIN_PLAYERS, MIN_PLAYERS, rng);
     expect(outcome.blessed).toBe(true);
     expect(outcome.guaranteed).toBe(false);
@@ -343,6 +349,12 @@ describe('配置常量', () => {
     expect(MOON_BLESSING_INITIAL_RATE).toBeGreaterThan(0);
     expect(MOON_BLESSING_RATE_INCREMENT).toBeGreaterThan(0);
     expect(MOON_BLESSING_START_ROUND).toBe(2);
+
+    // 「能爬到上限」这句得真的验一下，否则 MOON_BLESSING_MAX_RATE 可能是一句空话：
+    // 加持从第 2 轮开到保底前的最后一次掷骰，机会次数最多的是满员牌局，
+    // 到那一次都还没到上限，就说明这个上限永远不可能生效。
+    const lastBlessedRoll = guaranteeRollNumber(MAX_PLAYERS) - 2;
+    expect(computeBlessingRate(lastBlessedRoll, MAX_PLAYERS)).toBe(MOON_BLESSING_MAX_RATE);
   });
 
   it('权重表里的每一个 key 都是真实的 Champion Tier', () => {

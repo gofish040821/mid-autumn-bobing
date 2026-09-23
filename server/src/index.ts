@@ -26,6 +26,7 @@ import {
 } from './config/gameConfig.js';
 import { RoomManager } from './room/RoomManager.js';
 import { PlayerManager } from './room/PlayerManager.js';
+import { SiteStats } from './stats/SiteStats.js';
 import { registerSocketHandlers } from './socket/handlers.js';
 import { broadcastAll } from './socket/broadcast.js';
 
@@ -45,6 +46,7 @@ const io = new Server(server, {
 });
 
 const players = new PlayerManager();
+const stats = new SiteStats();
 
 /**
  * 每建一张新桌，都给它接上「引擎事件 → 广播到该房间」这条线。
@@ -59,7 +61,7 @@ const rooms = new RoomManager({
   },
 });
 
-registerSocketHandlers(io, rooms, players);
+registerSocketHandlers(io, rooms, players, stats);
 
 /* ---------------- HTTP ---------------- */
 
@@ -74,11 +76,22 @@ app.get('/api/rooms', (_req, res) => {
   });
 });
 
+/**
+ * 站点统计。和房间无关，所以不进 snapshot，走一个独立接口。
+ *
+ * `visitors` 是自本次开服以来的去重到访人数 —— 进程重启即归零，
+ * 不是历史总量（见 stats/SiteStats.ts 里的说明）。
+ */
+app.get('/api/stats', (_req, res) => {
+  res.json({ ok: true, stats: stats.snapshot(players.size, rooms.size) });
+});
+
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
     rooms: rooms.size,
     sockets: players.size,
+    visitors: stats.visitorCount,
     maxRooms: MAX_ROOMS,
     uptimeMs: Math.round(process.uptime() * 1000),
   });

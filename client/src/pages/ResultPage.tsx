@@ -16,6 +16,7 @@ import type { AwardId, GameStats, RankingEntry } from '@bobing/shared';
 
 import DiceFace from '../components/Dice/DiceFace';
 import Seal from '../components/Common/Seal';
+import SiteFooter from '../components/Common/SiteFooter';
 
 import { durationText, awardName, diceChinese, rankLabel } from '../lib/format';
 import { selectIsHost, useGameStore } from '../stores/gameStore';
@@ -260,6 +261,7 @@ export default function ResultPage(): JSX.Element {
           </p>
         </section>
         <RestartBlock isHost={isHost} pending={restarting} onRestart={handleRestart} />
+        <SiteFooter />
       </div>
     );
   }
@@ -292,6 +294,8 @@ export default function ResultPage(): JSX.Element {
       {stats && <StatsCard stats={stats} />}
 
       <RestartBlock isHost={isHost} pending={restarting} onRestart={handleRestart} />
+
+      <SiteFooter />
     </div>
   );
 }
