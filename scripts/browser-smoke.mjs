@@ -209,10 +209,30 @@ async function waitForDiceSettled(page, timeoutMs = 20_000) {
   return prev ?? { pips: [], awardText: null };
 }
 
+/** 房间码的字母表，和服务端一致（不含易混的 0/O/1/I/L）。 */
+const ROOM_CODE_RE = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{5}$/;
+
+/**
+ * 在页面里点「开一张新桌」，返回服务端下发的房间码。
+ *
+ * 多房间之后，「打开首页」不再等于「进了某一张桌」——得先开桌或输码。
+ * 后面的浏览器上下文都靠这个码拼出的 `?room=` 邀请链接坐进同一桌。
+ */
+async function createRoomIn(page) {
+  await page.locator('.lobby-room__create').click();
+  const codeEl = page.locator('.lobby-room__code');
+  await codeEl.waitFor({ state: 'visible', timeout: 10_000 });
+  return (await codeEl.textContent())?.trim() ?? '';
+}
+
+function inviteUrl(code) {
+  return `${URL}/?room=${code}`;
+}
+
 /** 开一个干净的浏览器上下文（独立 localStorage），用手机视口。 */
-async function newPlayer(browser, label, nickname, viewport) {
+async function newPlayer(browser, label, nickname, target) {
   const context = await browser.newContext({
-    viewport: viewport ?? { width: 390, height: 844 },
+    viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2,
     isMobile: true,
     hasTouch: true,
@@ -220,7 +240,9 @@ async function newPlayer(browser, label, nickname, viewport) {
   });
   const page = await context.newPage();
   const probe = instrument(page, label);
-  await page.goto(URL, { waitUntil: 'networkidle' });
+  // 走邀请链接，而不是裸域名 —— 裸域名是没有房间码的，那样四个窗口会
+  // 各自开各自的桌，然后看起来像「联机坏了」
+  await page.goto(target, { waitUntil: 'networkidle' });
   // 首次进入会先看到规则页
   const understood = page.getByRole('button', { name: /我已了解/ });
   if (await understood.isVisible().catch(() => false)) {
@@ -239,19 +261,13 @@ async function newPlayer(browser, label, nickname, viewport) {
 async function main() {
   console.log(`\n▸ 用系统 Chrome 打开 ${URL}\n`);
 
-  // 和 e2e 一样，这个脚本要从零开局；房间脏了就直接说清楚，别让人对着超时发呆
+  // 每次都现开一张新桌，所以不挑服务端状态：不用重启，也不会和别的牌局互相干扰。
   const health = await fetch(`${URL}/api/health`).then((r) => (r.ok ? r.json() : null));
   if (!health?.ok) {
     console.error(`\n❌ 连不上 ${URL}。请先在另一个终端启动服务端：\n     npm run build && npm start\n`);
     process.exit(1);
   }
-  if (health.phase !== 'LOBBY' || health.players > 0) {
-    console.error(
-      `\n❌ 房间不是空的（phase=${health.phase}, players=${health.players}）。\n` +
-        `   请先重启服务端再来：房间状态是纯内存的，重启即清空。\n`,
-    );
-    process.exit(1);
-  }
+  check('服务端已就绪（/api/health）', typeof health.rooms === 'number');
 
   const browser = await chromium.launch({
     channel: 'chrome',
@@ -290,6 +306,11 @@ async function main() {
       await understood.click();
       await hostPage.waitForTimeout(400);
     }
+    // 多房间之后，入席前得先有桌：房主开一张，拿到房间码
+    const roomCode = await createRoomIn(hostPage);
+    check(`开桌拿到 5 位房间码（${roomCode}）`, ROOM_CODE_RE.test(roomCode), roomCode);
+    const invite = inviteUrl(roomCode);
+
     await hostPage.getByPlaceholder(/取个雅号/).fill('苏子瞻');
     await hostPage.locator('.lobby-join__submit').click();
     await hostPage.waitForTimeout(900);
@@ -298,10 +319,10 @@ async function main() {
     await checkNoOverflow(hostProbe, '大厅');
     await shot(hostProbe, '02-lobby-desktop');
 
-    // 再来三个人
+    // 再来三个人（都走邀请链接）
     const others = [];
     for (const [i, name] of ['黄鲁直', '秦少游', '晁无咎'].entries()) {
-      others.push(await newPlayer(browser, `客人${i + 2}`, name));
+      others.push(await newPlayer(browser, `客人${i + 2}`, name, invite));
     }
 
     // 房主应该看到四个人
@@ -311,6 +332,11 @@ async function main() {
       check(`大厅里能看到「${name}」`, lobbyText.includes(name));
     }
     check('大厅显示了「4 / 15」一类的在位人数', /4\s*\/\s*15|4\s*位/.test(lobbyText), lobbyText.slice(0, 120));
+    check('大厅顶部显示了这一桌的房间码', lobbyText.includes(roomCode), lobbyText.slice(0, 160));
+    check(
+      '大厅里有「复制邀请链接」入口',
+      await hostPage.locator('.lobby-invite .btn').isVisible().catch(() => false),
+    );
     await shot(hostProbe, '03-lobby-four-players');
 
     /* ---------------- 3. 开局 ---------------- */
@@ -393,7 +419,7 @@ async function main() {
     });
     const mobilePage = await mobile.newPage();
     const mobileProbe = instrument(mobilePage, '手机375');
-    await mobilePage.goto(URL, { waitUntil: 'networkidle' });
+    await mobilePage.goto(invite, { waitUntil: 'networkidle' });
     await mobilePage.waitForTimeout(1000);
     const mUnderstood = mobilePage.getByRole('button', { name: /我已了解/ });
     if (await mUnderstood.isVisible().catch(() => false)) {

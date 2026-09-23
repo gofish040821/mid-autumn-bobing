@@ -7,12 +7,36 @@
 
 /* ---------------- 房间与人数 ---------------- */
 
-/** 第一版只有一桌。 */
+/**
+ * 默认房间 id。
+ *
+ * 现在每张桌都有自己的房间码，这个常量只用于两处：
+ *   - 单测里直接 new GameEngine() 时给个确定值；
+ *   - 不存在的房间一律按「找不到」处理，不做任何回退。
+ */
 export const ROOM_ID = 'MAIN_ROOM';
 export const ROOM_TITLE = '月满中秋 · 今夜博饼局';
 
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 15;
+
+/**
+ * 同时存在的房间数上限。
+ *
+ * 房间是纯内存对象，本身很便宜（一个房间才几 KB），这个上限不是为了省内存，
+ * 而是挡住「脚本狂点创建房间」把进程撑爆——每次建房都会带一个定时器。
+ * 真到了 200 桌同时开席的规模，该考虑的是换付费实例和多进程了。
+ */
+export const MAX_ROOMS = 200;
+
+/**
+ * 空房间（大厅里一个人都没有）闲置多久后被回收。
+ *
+ * 触发这个的条件很少：建房后没人来、或者最后一位客人掉线超过
+ * LOBBY_GHOST_TTL_MS 被腾出席位。给足 2 分钟是因为「创建房间」
+ * 到「朋友点进链接」之间本来就要等一会儿，不能刚建好就收走。
+ */
+export const EMPTY_ROOM_TTL_MS = 120_000;
 
 /** 凑满（满员）后的自动开局倒计时。 */
 export const AUTO_START_COUNTDOWN_MS = 5_000;
@@ -106,6 +130,8 @@ export const GAME_CONFIG = {
   ROOM_ID,
   MIN_PLAYERS,
   MAX_PLAYERS,
+  MAX_ROOMS,
+  EMPTY_ROOM_TTL_MS,
   AUTO_START_COUNTDOWN_MS,
   LOBBY_GHOST_TTL_MS,
   ABANDON_GRACE_MS,

@@ -12,8 +12,11 @@
 import { create } from 'zustand';
 import {
   AWARD_MAP,
+  ROOM_CODE_LENGTH,
   celebrationMsFor,
   diceMsFor,
+  isValidRoomCode,
+  normalizeRoomCode,
 } from '@bobing/shared';
 import type { GameSnapshot, LocalIdentity, PlayerState, RollRecord } from '@bobing/shared';
 
@@ -23,6 +26,7 @@ import {
   loadAudioEnabled,
   loadIdentity,
   loadReducedMotion,
+  loadSession,
   loadVolume,
   markRulesSeen,
   hasSeenRules,
@@ -32,7 +36,9 @@ import {
   saveSession,
   saveVolume,
 } from '../lib/identity';
+import { clearRoomCodeFromUrl, readRoomCodeFromUrl, writeRoomCodeToUrl } from '../lib/roomLink';
 import {
+  emitCreateRoom,
   emitJoin,
   emitRestart,
   emitRoll,
@@ -77,6 +83,13 @@ export interface Toast {
 interface GameStore {
   /* ---- 身份与偏好 ---- */
   identity: LocalIdentity;
+  /**
+   * 当前所在的房间码。
+   *
+   * 未入席时它来自 URL 的 `?room=`（可能在，也可能没有）；
+   * 创建房间后由服务端下发并写回 URL。为 null 表示「还没选桌」。
+   */
+  roomCode: string | null;
   hasJoined: boolean;
   rulesSeen: boolean;
   audioEnabled: boolean;
@@ -99,6 +112,8 @@ interface GameStore {
   toasts: Toast[];
   rollPending: boolean;
   joining: boolean;
+  /** 正在等服务端分配房间码 */
+  creatingRoom: boolean;
   /** 卷轴式规则弹窗 */
   ruleOpen: boolean;
 
@@ -111,6 +126,10 @@ interface GameStore {
   setVolume: (v: number) => void;
   setReducedMotion: (v: boolean) => void;
   rename: (nickname: string) => Promise<void>;
+  /** 开一张新桌，成功后房间码写进 URL 与 store。 */
+  createRoom: () => Promise<boolean>;
+  /** 用房间码加入一张已存在的桌（入席前调用）。 */
+  useRoomCode: (roomId: string) => boolean;
   join: (nickname: string) => Promise<boolean>;
   resync: () => Promise<void>;
   startGame: () => Promise<void>;
@@ -149,8 +168,12 @@ function clearRevealTimer(): void {
  * Store
  * ------------------------------------------------------------------ */
 
+/** 页面加载时就从 URL 里认领房间码，这样刷新能直接回到同一桌。 */
+const initialRoomCode = readRoomCodeFromUrl();
+
 export const useGameStore = create<GameStore>((set, get) => ({
-  identity: loadIdentity(),
+  identity: loadIdentity(initialRoomCode),
+  roomCode: initialRoomCode,
   hasJoined: false,
   rulesSeen: hasSeenRules(),
   audioEnabled: loadAudioEnabled(),
@@ -168,6 +191,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   toasts: [],
   rollPending: false,
   joining: false,
+  creatingRoom: false,
   ruleOpen: false,
 
   /* ---------------- 初始化 ---------------- */
@@ -380,10 +404,41 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!res.ok) get().pushToast(res.message, 'warn');
   },
 
+  createRoom: async () => {
+    if (get().creatingRoom) return false;
+    audio.unlock();
+    set({ creatingRoom: true, lastError: null });
+    const res = await emitCreateRoom();
+    set({ creatingRoom: false });
+
+    if (!res.ok) {
+      set({ lastError: res.message });
+      get().pushToast(res.message, 'error');
+      return false;
+    }
+    applyRoom(res.data.roomId, set);
+    return true;
+  },
+
+  useRoomCode: (roomId) => {
+    const code = normalizeRoomCode(roomId);
+    if (!isValidRoomCode(code)) {
+      set({ lastError: `房间码是 ${ROOM_CODE_LENGTH} 位字符，请检查邀请链接` });
+      return false;
+    }
+    applyRoom(code, set);
+    return true;
+  },
+
   join: async (nickname) => {
     const trimmed = nickname.trim();
     if (!trimmed) {
       get().pushToast('请先取个名字', 'warn');
+      return false;
+    }
+    const roomId = get().roomCode;
+    if (!roomId) {
+      get().pushToast('请先开一桌，或用房间码加入', 'warn');
       return false;
     }
     audio.unlock();
@@ -395,19 +450,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
       guestId: identity.guestId,
       sessionToken: identity.sessionToken,
       nickname: trimmed,
+      roomId,
     });
     set({ joining: false });
 
     if (!res.ok) {
       if (res.snapshot) snapshotSink(res.snapshot);
       // 座位凭证失效（例如服务端重启、或这一局已经开始）→ 清掉旧 token 以便重新入席
-      if (res.error === 'INVALID_SESSION') clearSession();
+      if (res.error === 'INVALID_SESSION') {
+        clearSession(roomId);
+        set((s) => ({ identity: { ...s.identity, sessionToken: null, playerId: null } }));
+      }
+      // 房间不存在（多半是链接不全或码打错了）→ 把 URL 上的房间码也撤掉，
+      // 否则刷新之后还是同一个错，人会一直卡在这一步
+      if (res.error === 'ROOM_NOT_FOUND') {
+        applyRoom(null, set);
+      }
       set({ lastError: res.message });
       get().pushToast(res.message, 'error');
       return false;
     }
 
-    saveSession(res.data.sessionToken, res.data.playerId);
+    saveSession(roomId, res.data.sessionToken, res.data.playerId);
     set((s) => ({
       hasJoined: true,
       identity: {
@@ -423,14 +487,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   resync: async () => {
-    const { identity } = get();
-    if (!identity.sessionToken) return;
+    const { identity, roomCode } = get();
+    if (!identity.sessionToken || !roomCode) return;
     const res = await emitSync(identity.sessionToken);
     if (res.ok) {
       snapshotSink(res.data);
       set({ hasJoined: true });
     } else if (res.error === 'INVALID_SESSION') {
-      clearSession();
+      clearSession(roomCode);
       set((s) => ({
         hasJoined: false,
         lastError: res.message,
@@ -501,6 +565,38 @@ export const useGameStore = create<GameStore>((set, get) => ({
 /* ------------------------------------------------------------------ *
  * 帮助函数（非 hook）
  * ------------------------------------------------------------------ */
+
+type StoreSet = (
+  partial: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>),
+) => void;
+
+/**
+ * 切换当前房间。
+ *
+ * 三件事必须一起做，少一件就会出「看起来正常但到处是怪事」的 bug：
+ *   1. 房间码写回 URL —— 否则刷新页面就掉回未选桌状态；
+ *   2. 取回**这个房间**的座位凭证 —— 每个房间的凭证是分开存的，
+ *      不换证就会拿着 A 桌的 token 去敲 B 桌的门，必然被拒；
+ *   3. hasJoined 归零 —— 换了桌就得重新入席。
+ *
+ * roomId 传 null 表示「还没选桌」，此时清掉 URL 上的房间码。
+ */
+function applyRoom(roomId: string | null, set: StoreSet): void {
+  if (roomId) writeRoomCodeToUrl(roomId);
+  else clearRoomCodeFromUrl();
+
+  const session = loadSession(roomId);
+  set((s) => ({
+    roomCode: roomId,
+    hasJoined: false,
+    lastError: null,
+    identity: {
+      ...s.identity,
+      sessionToken: session.sessionToken,
+      playerId: session.playerId,
+    },
+  }));
+}
 
 function applyReducedMotion(value: boolean): void {
   try {

@@ -15,10 +15,19 @@ import express from 'express';
 import cors from 'cors';
 import compression from 'compression';
 import { Server } from 'socket.io';
-import { ROOM_ID, SERVER_PORT, MIN_PLAYERS, MAX_PLAYERS, TURN_TIMEOUT_MS } from './config/gameConfig.js';
+import {
+  ROOM_ID,
+  SERVER_PORT,
+  MIN_PLAYERS,
+  MAX_PLAYERS,
+  MAX_ROOMS,
+  TURN_TIMEOUT_MS,
+  EMPTY_ROOM_TTL_MS,
+} from './config/gameConfig.js';
 import { RoomManager } from './room/RoomManager.js';
 import { PlayerManager } from './room/PlayerManager.js';
 import { registerSocketHandlers } from './socket/handlers.js';
+import { broadcastAll } from './socket/broadcast.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -26,10 +35,6 @@ const app = express();
 app.use(cors());
 app.use(compression());
 app.use(express.json());
-
-const rooms = new RoomManager();
-const players = new PlayerManager();
-const engine = rooms.getMainRoom();
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -39,30 +44,65 @@ const io = new Server(server, {
   maxHttpBufferSize: 1e6,
 });
 
-registerSocketHandlers(io, engine, players);
+const players = new PlayerManager();
+
+/**
+ * 每建一张新桌，都给它接上「引擎事件 → 广播到该房间」这条线。
+ *
+ * makeEmitter 在构造时就交给 RoomManager，而不是事后 set ——
+ * 后者要求「必须先 setEmitterFactory 再 create」，调用顺序错了
+ * 就会出现「建了桌但所有人收不到广播」这种极难排查的静默故障。
+ */
+const rooms = new RoomManager({
+  makeEmitter: (roomId) => (events, snapshot) => {
+    broadcastAll(io as unknown as Server, roomId, events, snapshot);
+  },
+});
+
+registerSocketHandlers(io, rooms, players);
 
 /* ---------------- HTTP ---------------- */
 
-app.get('/api/health', (_req, res) => {
-  const snapshot = engine.snapshot();
+/** 全部房间的概览，运维用。不暴露给玩家界面。 */
+app.get('/api/rooms', (_req, res) => {
   res.json({
     ok: true,
-    roomId: ROOM_ID,
-    phase: snapshot.phase,
-    players: snapshot.players.length,
-    stateVersion: snapshot.stateVersion,
+    rooms: rooms.list(),
+    total: rooms.size,
+    maxRooms: MAX_ROOMS,
+    sockets: players.size,
+  });
+});
+
+app.get('/api/health', (_req, res) => {
+  res.json({
+    ok: true,
+    rooms: rooms.size,
+    sockets: players.size,
+    maxRooms: MAX_ROOMS,
     uptimeMs: Math.round(process.uptime() * 1000),
   });
 });
 
 app.get('/api/config', (_req, res) => {
   res.json({
-    roomId: ROOM_ID,
     minPlayers: MIN_PLAYERS,
     maxPlayers: MAX_PLAYERS,
     turnTimeoutMs: TURN_TIMEOUT_MS,
   });
 });
+
+/**
+ * 房间回收扫描。
+ *
+ * 用 unref() 是为了不因为这个定时器把进程吊住 —— 测试环境里
+ * import 这个模块后可以正常退出。
+ */
+const sweepTimer = setInterval(() => {
+  const reaped = rooms.sweep();
+  if (reaped > 0) console.log(`[rooms] 回收了 ${reaped} 张空桌，现存 ${rooms.size} 张`);
+}, Math.max(5_000, Math.floor(EMPTY_ROOM_TTL_MS / 4)));
+sweepTimer.unref();
 
 /** 生产环境：托管打包好的前端。开发环境用 Vite 的 dev server。 */
 const clientDist = path.resolve(__dirname, '../../client/dist');
@@ -97,7 +137,8 @@ server.listen(SERVER_PORT, '0.0.0.0', () => {
 });
 
 function shutdown(): void {
-  engine.dispose();
+  clearInterval(sweepTimer);
+  rooms.disposeAll();
   io.close();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 2000).unref();
@@ -106,4 +147,4 @@ function shutdown(): void {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-export { app, server, io, engine };
+export { app, server, io, rooms, players, ROOM_ID };

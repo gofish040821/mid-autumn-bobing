@@ -112,6 +112,141 @@
   color: var(--ink-faint);
 }
 
+/* ---- 选桌 ---- */
+
+.lobby-room {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-bottom: 2px;
+}
+
+.lobby-room__label {
+  font-size: 13.5px;
+  letter-spacing: 0.16em;
+}
+
+.lobby-room__code-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.lobby-room__code {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  font-size: clamp(24px, 7vw, 30px);
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  color: var(--cinnabar);
+  background: rgba(255, 253, 246, 0.92);
+  border: 1px dashed var(--gold);
+  border-radius: var(--radius);
+  text-shadow: 0 0 14px rgba(232, 199, 122, 0.5);
+}
+
+.lobby-room__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 48px;
+  padding: 10px 12px;
+  text-align: center;
+  font-size: 22px;
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: rgba(255, 253, 246, 0.92);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color 0.18s var(--ease-soft), box-shadow 0.18s var(--ease-soft);
+}
+
+.lobby-room__input::placeholder {
+  color: var(--ink-faint);
+  letter-spacing: 0.28em;
+}
+
+.lobby-room__input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(177, 138, 85, 0.2);
+}
+
+.lobby-room__note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink-faint);
+}
+
+.lobby-room__code-form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.lobby-room__create {
+  min-height: 50px;
+  font-size: clamp(16px, 4.5vw, 18px);
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+}
+
+.lobby-room__join-existing {
+  align-self: center;
+  padding: 4px 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.lobby-room__back {
+  align-self: flex-start;
+  padding: 2px 0;
+  font-size: 13px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* ---- 大厅里的邀请行 ---- */
+
+.lobby-head__room {
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: var(--ink-soft);
+}
+
+.lobby-head__room strong {
+  font-size: 15px;
+  letter-spacing: 0.24em;
+  color: var(--cinnabar);
+}
+
+.lobby-invite__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lobby-invite__label {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .lobby-loading {
   margin-top: 24px;
   text-align: center;

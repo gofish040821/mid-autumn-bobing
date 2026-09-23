@@ -8,6 +8,7 @@ import { io, type Socket } from 'socket.io-client';
 import type {
   Ack,
   ClientToServerEvents,
+  CreateRoomResult,
   GameSnapshot,
   JoinPayload,
   JoinResult,
@@ -85,6 +86,13 @@ function withAck<T>(
       resolve(res);
     });
   });
+}
+
+/** 开一张新桌，拿回房间码。房间码由服务端生成，客户端不能指定。 */
+export function emitCreateRoom(): Promise<Ack<CreateRoomResult>> {
+  return withAck<CreateRoomResult>((cb) => {
+    getSocket().timeout(ACK_TIMEOUT_MS).emit('room:create', undefined, cb);
+  }, '创建房间超时，请重试');
 }
 
 export function emitJoin(payload: JoinPayload): Promise<Ack<JoinResult>> {

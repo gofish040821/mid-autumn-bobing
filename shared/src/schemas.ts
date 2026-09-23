@@ -4,6 +4,8 @@
  */
 import { z } from 'zod';
 
+import { isValidRoomCode, normalizeRoomCode } from './roomCode.js';
+
 export const NICKNAME_MIN = 2;
 export const NICKNAME_MAX = 12;
 
@@ -23,10 +25,21 @@ export const sessionTokenSchema = z.string().min(8).max(128);
 export const turnIdSchema = z.string().regex(/^turn_\d{6,}$/, 'turnId 格式不合法');
 export const actionIdSchema = z.string().min(1).max(64);
 
+/**
+ * 房间码。先规整（去空白、转大写）再校验，
+ * 这样朋友发来的「7k3f」和「7K3F」都能进同一桌。
+ */
+export const roomCodeSchema = z
+  .string()
+  .max(32)
+  .transform(normalizeRoomCode)
+  .refine(isValidRoomCode, { message: '房间码不正确，请检查邀请链接' });
+
 export const joinPayloadSchema = z.object({
   guestId: guestIdSchema,
   sessionToken: sessionTokenSchema.nullish(),
   nickname: nicknameSchema,
+  roomId: roomCodeSchema,
 });
 
 export const syncPayloadSchema = z.object({

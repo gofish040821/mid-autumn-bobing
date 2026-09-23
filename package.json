@@ -18,6 +18,7 @@
     "typecheck": "npm run typecheck --workspace @bobing/shared && npm run typecheck --workspace @bobing/server && npm run typecheck --workspace @bobing/client",
     "test": "npm run test --workspace @bobing/server",
     "test:e2e": "node scripts/e2e-smoke.mjs",
+    "test:multiroom": "node scripts/multiroom-smoke.mjs",
     "test:browser": "node scripts/browser-smoke.mjs"
   },
   "devDependencies": {

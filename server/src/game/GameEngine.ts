@@ -99,6 +99,8 @@ interface EngineState {
 }
 
 export interface EngineDeps {
+  /** 这张桌的房间码。不传则退回默认房间（单测直接 new 时用）。 */
+  roomId?: string;
   clock?: Clock;
   rng?: Rng;
   emit?: EngineEmitter;
@@ -144,7 +146,7 @@ export class GameEngine {
     this.clock = deps.clock ?? systemClock;
     this.rng = deps.rng ?? Math.random;
     this.state = {
-      roomId: ROOM_ID,
+      roomId: deps.roomId ?? ROOM_ID,
       phase: 'LOBBY',
       players: [],
       currentTurn: null,
@@ -1084,6 +1086,8 @@ export class GameEngine {
 
 const ROLL_ERROR_MESSAGES: Record<ErrorCode, string> = {
   ROOM_FULL: '本桌已满',
+  ROOM_NOT_FOUND: '找不到这一桌',
+  ROOM_LIMIT_REACHED: '今晚的桌子已经开满了',
   GAME_ALREADY_STARTED: '本局已经开始了',
   NOT_ENOUGH_PLAYERS: '人数不足',
   NOT_HOST: '只有房主可以操作',

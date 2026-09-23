@@ -9,14 +9,31 @@ import type { LocalIdentity } from '@bobing/shared';
 
 const KEYS = {
   guestId: 'bobing_guest_id_v1',
-  sessionToken: 'bobing_session_token_v1',
-  playerId: 'bobing_player_id_v1',
   nickname: 'bobing_nickname_v1',
   rulesSeen: 'bobing_rules_seen_v1',
   audioEnabled: 'bobing_audio_enabled_v1',
   volume: 'bobing_audio_volume_v1',
   reducedMotion: 'bobing_reduced_motion_v1',
 } as const;
+
+/**
+ * 座位凭证按房间分开存。
+ *
+ * 现在一个人可以同时是 A 桌的三号位和 B 桌的七号位，只用一个全局
+ * sessionToken 会让两桌互相覆盖：在 B 桌入席后回到 A 桌，A 桌的凭证
+ * 已经被冲掉了，服务端只能把你当成陌生人 —— 而 A 桌此时正在牌局中，
+ * 于是你被永久挡在门外。分房间存储是这件事唯一正确的做法。
+ *
+ * v1 的全局键（bobing_session_token_v1）就此废弃，不做迁移：
+ * 它对应的老房间已经不存在了。
+ */
+function sessionKey(roomId: string): string {
+  return `bobing_session_v2_${roomId}`;
+}
+
+function playerKey(roomId: string): string {
+  return `bobing_player_v2_${roomId}`;
+}
 
 function safeGet(key: string): string | null {
   try {
@@ -56,23 +73,36 @@ export function getOrCreateGuestId(): string {
   return created;
 }
 
-export function loadIdentity(): LocalIdentity {
+/** 读取某个房间的座位凭证。roomId 为 null（还没选桌）时返回空。 */
+export function loadSession(roomId: string | null): {
+  sessionToken: string | null;
+  playerId: string | null;
+} {
+  if (!roomId) return { sessionToken: null, playerId: null };
+  return {
+    sessionToken: safeGet(sessionKey(roomId)),
+    playerId: safeGet(playerKey(roomId)),
+  };
+}
+
+export function loadIdentity(roomId: string | null = null): LocalIdentity {
+  const session = loadSession(roomId);
   return {
     guestId: getOrCreateGuestId(),
-    sessionToken: safeGet(KEYS.sessionToken),
-    playerId: safeGet(KEYS.playerId),
+    sessionToken: session.sessionToken,
+    playerId: session.playerId,
     nickname: safeGet(KEYS.nickname) ?? '',
   };
 }
 
-export function saveSession(sessionToken: string, playerId: string): void {
-  safeSet(KEYS.sessionToken, sessionToken);
-  safeSet(KEYS.playerId, playerId);
+export function saveSession(roomId: string, sessionToken: string, playerId: string): void {
+  safeSet(sessionKey(roomId), sessionToken);
+  safeSet(playerKey(roomId), playerId);
 }
 
-export function clearSession(): void {
-  safeSet(KEYS.sessionToken, null);
-  safeSet(KEYS.playerId, null);
+export function clearSession(roomId: string): void {
+  safeSet(sessionKey(roomId), null);
+  safeSet(playerKey(roomId), null);
 }
 
 export function saveNickname(nickname: string): void {

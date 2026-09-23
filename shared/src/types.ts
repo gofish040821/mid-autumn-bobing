@@ -46,6 +46,8 @@ export type TurnKind = 'NORMAL' | 'CHASE';
 
 export type ErrorCode =
   | 'ROOM_FULL'
+  | 'ROOM_NOT_FOUND'
+  | 'ROOM_LIMIT_REACHED'
   | 'GAME_ALREADY_STARTED'
   | 'NOT_ENOUGH_PLAYERS'
   | 'NOT_HOST'
@@ -283,6 +285,11 @@ export interface JoinResult {
   seat: number;
   isHost: boolean;
   snapshot: GameSnapshot;
+}
+
+/** room:create 的返回：新房间的房间码。 */
+export interface CreateRoomResult {
+  roomId: string;
 }
 
 export interface RollAck {

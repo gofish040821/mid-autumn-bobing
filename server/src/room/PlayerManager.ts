@@ -1,45 +1,80 @@
 /**
  * PlayerManager —— socket 与玩家身份的映射。
  *
- * 关键点：socket.id 会因为断线重连而变化，**永远不能**作为玩家身份。
- * 这里只维护 socket.id → playerId 的当下映射，真正的身份在 sessionToken。
+ * 两个关键点：
+ *
+ * 1. **socket.id 不能当身份。** 它会因为断线重连而变化，真正的身份在 sessionToken。
+ *    这里只维护 socket.id → (roomId, playerId) 的当下映射。
+ *
+ * 2. **playerId 只在房间内唯一。** 每个引擎都有自己的计数器，
+ *    所以 A 桌和 B 桌会各自存在一个 `player_0001`。
+ *    绑定关系必须带上房间码，否则 B 桌的 socket 会拿到 A 桌的 playerId，
+ *    接着就会用别人的身份去掷骰子 —— 而且两边看起来都「正常」，
+ *    只有积分记错了人。这是多房间改造里最隐蔽的一处。
  */
+export interface SocketBinding {
+  roomId: string;
+  playerId: string;
+}
+
 export class PlayerManager {
-  private readonly socketToPlayer = new Map<string, string>();
+  private readonly socketToBinding = new Map<string, SocketBinding>();
   private readonly playerToSocket = new Map<string, string>();
 
-  bind(socketId: string, playerId: string): void {
-    const previousSocket = this.playerToSocket.get(playerId);
+  /** 用作 playerToSocket 的复合键。 */
+  private static key(roomId: string, playerId: string): string {
+    return `${roomId}\u0000${playerId}`;
+  }
+
+  bind(socketId: string, roomId: string, playerId: string): void {
+    const composite = PlayerManager.key(roomId, playerId);
+
+    // 同一个座位换了新 socket（重连）→ 先摘掉旧连接，避免留下幽灵映射
+    const previousSocket = this.playerToSocket.get(composite);
     if (previousSocket && previousSocket !== socketId) {
-      this.socketToPlayer.delete(previousSocket);
+      this.socketToBinding.delete(previousSocket);
     }
-    const previousPlayer = this.socketToPlayer.get(socketId);
-    if (previousPlayer && previousPlayer !== playerId) {
-      this.playerToSocket.delete(previousPlayer);
+
+    // 同一个 socket 绑到了别的座位（换房 / 换座）→ 先摘掉旧座位
+    const previousBinding = this.socketToBinding.get(socketId);
+    if (previousBinding) {
+      const previousKey = PlayerManager.key(previousBinding.roomId, previousBinding.playerId);
+      if (previousKey !== composite) this.playerToSocket.delete(previousKey);
     }
-    this.socketToPlayer.set(socketId, playerId);
-    this.playerToSocket.set(playerId, socketId);
+
+    this.socketToBinding.set(socketId, { roomId, playerId });
+    this.playerToSocket.set(composite, socketId);
   }
 
-  playerIdOf(socketId: string): string | undefined {
-    return this.socketToPlayer.get(socketId);
+  bindingOf(socketId: string): SocketBinding | undefined {
+    return this.socketToBinding.get(socketId);
   }
 
-  socketIdOf(playerId: string): string | undefined {
-    return this.playerToSocket.get(playerId);
+  socketIdOf(roomId: string, playerId: string): string | undefined {
+    return this.playerToSocket.get(PlayerManager.key(roomId, playerId));
   }
 
-  unbindSocket(socketId: string): string | undefined {
-    const playerId = this.socketToPlayer.get(socketId);
-    if (!playerId) return undefined;
-    this.socketToPlayer.delete(socketId);
-    if (this.playerToSocket.get(playerId) === socketId) {
-      this.playerToSocket.delete(playerId);
+  unbindSocket(socketId: string): SocketBinding | undefined {
+    const binding = this.socketToBinding.get(socketId);
+    if (!binding) return undefined;
+    this.socketToBinding.delete(socketId);
+    const composite = PlayerManager.key(binding.roomId, binding.playerId);
+    if (this.playerToSocket.get(composite) === socketId) {
+      this.playerToSocket.delete(composite);
     }
-    return playerId;
+    return binding;
+  }
+
+  /** 某个房间里有多少个活着的连接（用于散场判断与调试）。 */
+  countInRoom(roomId: string): number {
+    let n = 0;
+    for (const binding of this.socketToBinding.values()) {
+      if (binding.roomId === roomId) n += 1;
+    }
+    return n;
   }
 
   get size(): number {
-    return this.socketToPlayer.size;
+    return this.socketToBinding.size;
   }
 }

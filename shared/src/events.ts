@@ -7,6 +7,7 @@
  */
 import type {
   Ack,
+  CreateRoomResult,
   GameSnapshot,
   JoinResult,
   PlayerState,
@@ -23,6 +24,13 @@ export interface JoinPayload {
   /** 断线重连时携带；首次加入为 null */
   sessionToken?: string | null;
   nickname: string;
+  /**
+   * 要进哪一桌。
+   *
+   * 房间不存在时**不会**顺手建一个 —— 打错一个字母就凭空多出一间空房，
+   * 而且人会坐在里面等一个永远不会来的朋友。建桌必须走 room:create。
+   */
+  roomId: string;
 }
 
 export interface SyncPayload {
@@ -45,6 +53,8 @@ export interface RollPayload {
  * ------------------------------------------------------------------ */
 
 export interface ClientToServerEvents {
+  /** 开一张新桌，返回房间码。房间码由服务端生成，客户端不能指定。 */
+  'room:create': (payload: undefined, ack: (res: Ack<CreateRoomResult>) => void) => void;
   'room:join': (payload: JoinPayload, ack: (res: Ack<JoinResult>) => void) => void;
   'room:sync': (payload: SyncPayload, ack: (res: Ack<GameSnapshot>) => void) => void;
   'player:setNickname': (payload: SetNicknamePayload, ack: (res: Ack<PlayerState>) => void) => void;
@@ -108,6 +118,3 @@ export const SERVER_EVENTS: readonly (keyof ServerToClientEvents)[] = [
   'champion:queueUpdated',
   'game:finished',
 ] as const;
-
-/** 房间 id —— 第一版只有一桌。 */
-export const MAIN_ROOM_ID = 'MAIN_ROOM';

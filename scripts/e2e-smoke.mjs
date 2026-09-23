@@ -115,11 +115,12 @@ function makeClient(index) {
   return state;
 }
 
-async function join(client, nickname) {
+async function join(client, nickname, roomId) {
   const res = await ask(client.socket, 'room:join', {
     guestId: client.guestId,
     nickname,
     sessionToken: client.sessionToken,
+    roomId,
   });
   if (res?.ok) {
     client.playerId = res.data.playerId;
@@ -138,26 +139,30 @@ async function main() {
   });
   check('服务端已就绪（/api/health）', health.ok === true);
 
-  // 这个脚本需要一个「干净的」房间。上一轮跑完如果没重启服务端，
-  // 座位会被占着，后面会以各种莫名其妙的方式失败——所以这里直接说清楚。
-  if (health.phase !== 'LOBBY' || health.players > 0) {
-    console.error(
-      `\n❌ 房间不是空的（phase=${health.phase}, players=${health.players}）。\n` +
-        `   这个脚本要从零开局，请先重启服务端：\n` +
-        `     Ctrl+C 停掉 npm run dev:server，再重新执行\n` +
-        `   （若刚跑完浏览器验收，也一并重启；房间状态是纯内存的）\n`,
-    );
-    process.exit(1);
-  }
-  check('房间是干净的（LOBBY 且无人在座）', true);
+  check(
+    '健康检查报的是房间数与连接数',
+    typeof health.rooms === 'number' && typeof health.sockets === 'number',
+    JSON.stringify(health),
+  );
 
-  /* ---------------- 1. 入席 ---------------- */
-  console.log('\n[1] 四位玩家依次入席');
+  /* ---------------- 1. 开一张新桌并入席 ---------------- */
+  // 每次都现开一张桌，所以这个脚本不依赖服务端是不是「干净」的：
+  // 不用重启、也不会和别人的牌局互相干扰。
+  console.log('\n[1] 开一张新桌，四位玩家依次入席');
   const clients = Array.from({ length: PLAYER_COUNT }, (_, i) => makeClient(i));
   const names = ['苏子瞻', '黄鲁直', '秦少游', '晁无咎'];
 
+  const created = await ask(clients[0].socket, 'room:create', undefined);
+  check('开桌成功', created?.ok === true, created?.message);
+  const ROOM = created?.data?.roomId;
+  check(
+    '房间码是 5 位短码（不含易混的 0/O/1/I/L）',
+    /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{5}$/.test(ROOM ?? ''),
+    ROOM,
+  );
+
   for (let i = 0; i < PLAYER_COUNT; i += 1) {
-    const res = await join(clients[i], names[i]);
+    const res = await join(clients[i], names[i], ROOM);
     check(`${names[i]} 入席成功`, res?.ok === true, res?.message);
   }
 
@@ -176,7 +181,7 @@ async function main() {
   // 同一个 guestId 重复入席应被拒
   const dupe = makeClient(99);
   dupe.guestId = clients[1].guestId;
-  const dupeRes = await join(dupe, '冒名者');
+  const dupeRes = await join(dupe, '冒名者', ROOM);
   check('同一浏览器身份不能重复占座', dupeRes?.ok === false, dupeRes?.message);
   dupe.socket.close();
 
@@ -367,7 +372,7 @@ async function main() {
   const revived = makeClient(2);
   revived.guestId = refresh.guestId;
   revived.sessionToken = refresh.sessionToken;
-  const revRes = await join(revived, names[2]);
+  const revRes = await join(revived, names[2], ROOM);
   check('带 sessionToken 重连成功', revRes?.ok === true, revRes?.message);
 
   const syncRes = await ask(revived.socket, 'room:sync', { sessionToken: revived.sessionToken });

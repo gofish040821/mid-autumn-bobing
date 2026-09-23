@@ -9,12 +9,20 @@ import { useEffect, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { motion } from 'framer-motion';
 
-import { NICKNAME_MAX, NICKNAME_MIN, pickRandomNickname } from '@bobing/shared';
+import {
+  NICKNAME_MAX,
+  NICKNAME_MIN,
+  ROOM_CODE_LENGTH,
+  isValidRoomCode,
+  normalizeRoomCode,
+  pickRandomNickname,
+} from '@bobing/shared';
 import type { PlayerState } from '@bobing/shared';
 
 import TopBar from '../components/Common/TopBar';
 import PlayerList from '../components/PlayerList/PlayerList';
 import { useGameStore, selectIsHost } from '../stores/gameStore';
+import { buildInviteLink } from '../lib/roomLink';
 import { countdownText, initialOf } from '../lib/format';
 import { useCountdown } from '../hooks/useCountdown';
 import './LobbyPage.css';
@@ -75,12 +83,19 @@ export default function LobbyPage(): JSX.Element {
   const rename = useGameStore((s) => s.rename);
   const startGame = useGameStore((s) => s.startGame);
   const clearError = useGameStore((s) => s.clearError);
+  const roomCode = useGameStore((s) => s.roomCode);
+  const createRoom = useGameStore((s) => s.createRoom);
+  const useRoomCode = useGameStore((s) => s.useRoomCode);
+  const creatingRoom = useGameStore((s) => s.creatingRoom);
   const isHost = useGameStore(selectIsHost);
 
   const [nickname, setNickname] = useState<string>(identity.nickname);
   const [starting, setStarting] = useState<boolean>(false);
   const [renameOpen, setRenameOpen] = useState<boolean>(false);
   const [renameValue, setRenameValue] = useState<string>(identity.nickname);
+  const [codeInput, setCodeInput] = useState<string>('');
+  const [codeOpen, setCodeOpen] = useState<boolean>(false);
+  const [copied, setCopied] = useState<boolean>(false);
   const [narrow, setNarrow] = useState<boolean>(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
     return window.matchMedia(NARROW_QUERY).matches;
@@ -102,7 +117,8 @@ export default function LobbyPage(): JSX.Element {
 
   const trimmed = nickname.trim();
   const lengthOk = trimmed.length >= NICKNAME_MIN && trimmed.length <= NICKNAME_MAX;
-  const canJoin = lengthOk && !joining;
+  const hasRoom = roomCode !== null;
+  const canJoin = lengthOk && hasRoom && !joining;
   const validationText =
     trimmed.length > 0 && trimmed.length < NICKNAME_MIN ? `雅号至少 ${NICKNAME_MIN} 个字` : null;
   const errorText = lastError ?? validationText;
@@ -117,6 +133,30 @@ export default function LobbyPage(): JSX.Element {
   const handleRandom = (): void => {
     setNickname(pickRandomNickname(takenNicknames));
     if (lastError) clearError();
+  };
+
+  const handleCreateRoom = async (): Promise<void> => {
+    if (lastError) clearError();
+    await createRoom();
+  };
+
+  const handleCodeSubmit = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    if (lastError) clearError();
+    if (useRoomCode(codeInput)) setCodeOpen(false);
+  };
+
+  const handleCopyInvite = async (): Promise<void> => {
+    if (!roomCode) return;
+    const link = buildInviteLink(roomCode);
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // 剪贴板不可用（非 https、或浏览器拒绝）时退而求其次：把链接选中让人自己复制
+      window.prompt('复制这条链接发给朋友：', link);
+    }
   };
 
   const handleJoinSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
@@ -185,6 +225,90 @@ export default function LobbyPage(): JSX.Element {
           <p className="lobby-join__lede">取个雅号，与朋友们同坐一桌。</p>
           <hr className="hairline" />
 
+          {/* ---- 选桌：链接带码就免了这一步，否则先开一桌或输码 ---- */}
+          <section className="lobby-room">
+            {hasRoom ? (
+              <>
+                <div className="lobby-room__label t-muted">这一桌的房间码</div>
+                <div className="lobby-room__code-row">
+                  <span className="lobby-room__code t-nums">{roomCode}</span>
+                  <button type="button" className="btn btn--gold btn--sm" onClick={handleCopyInvite}>
+                    {copied ? '已复制' : '复制邀请链接'}
+                  </button>
+                </div>
+                <p className="lobby-room__note">把链接发给朋友，他们打开就能坐进同一桌。</p>
+              </>
+            ) : codeOpen ? (
+              <form className="lobby-room__code-form" onSubmit={handleCodeSubmit}>
+                <label className="lobby-room__label t-muted" htmlFor="lobby-room-code">
+                  输入朋友的房间码
+                </label>
+                <div className="lobby-room__code-row">
+                  <input
+                    id="lobby-room-code"
+                    className="lobby-room__input t-nums"
+                    type="text"
+                    value={codeInput}
+                    onChange={(event) => {
+                      setCodeInput(normalizeRoomCode(event.target.value));
+                      if (lastError) clearError();
+                    }}
+                    maxLength={ROOM_CODE_LENGTH}
+                    placeholder={'·'.repeat(ROOM_CODE_LENGTH)}
+                    aria-label="房间码"
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    inputMode="text"
+                  />
+                  <button
+                    type="submit"
+                    className="btn btn--gold btn--sm"
+                    disabled={!isValidRoomCode(codeInput)}
+                  >
+                    加入
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="lobby-room__back t-muted"
+                  onClick={() => {
+                    setCodeOpen(false);
+                    if (lastError) clearError();
+                  }}
+                >
+                  ← 改成自己开一桌
+                </button>
+              </form>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="btn btn--gold btn--block lobby-room__create"
+                  onClick={() => {
+                    void handleCreateRoom();
+                  }}
+                  disabled={creatingRoom}
+                >
+                  {creatingRoom ? '正在开桌……' : '开一张新桌'}
+                </button>
+                <button
+                  type="button"
+                  className="lobby-room__join-existing t-muted"
+                  onClick={() => {
+                    setCodeOpen(true);
+                    if (lastError) clearError();
+                  }}
+                >
+                  朋友已经开好桌了？用房间码加入
+                </button>
+              </>
+            )}
+          </section>
+
+          <hr className="hairline" />
+
           <form className="lobby-join__form" onSubmit={handleJoinSubmit}>
             <label className="lobby-join__label t-kai" htmlFor="lobby-nickname">
               雅号
@@ -219,7 +343,7 @@ export default function LobbyPage(): JSX.Element {
               className="btn btn--primary btn--block lobby-join__submit"
               disabled={!canJoin}
             >
-              {joining ? '入席中……' : '进入大厅'}
+              {joining ? '入席中……' : hasRoom ? '进入大厅' : '请先开桌或加入一桌'}
             </button>
           </form>
 
@@ -253,6 +377,11 @@ export default function LobbyPage(): JSX.Element {
         <p className="lobby-head__count t-nums">
           当前人数 <strong>{total}</strong> / {maxPlayers}
         </p>
+        {roomCode && (
+          <p className="lobby-head__room t-nums">
+            房间 <strong>{roomCode}</strong>
+          </p>
+        )}
       </header>
 
       {narrow ? (
@@ -316,6 +445,23 @@ export default function LobbyPage(): JSX.Element {
 
         <p className="lobby-status__foot">骰子由服务器掷出，所有人同时看到结果</p>
       </section>
+
+      {roomCode && (
+        <section className="panel panel--tight lobby-invite">
+          <div className="lobby-invite__row">
+            <span className="lobby-invite__label t-muted">
+              还差人？把这桌的链接发出去
+            </span>
+            <button
+              type="button"
+              className="btn btn--gold btn--sm"
+              onClick={handleCopyInvite}
+            >
+              {copied ? '已复制' : '复制邀请链接'}
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className="panel panel--tight lobby-rename">
         {renameOpen ? (
