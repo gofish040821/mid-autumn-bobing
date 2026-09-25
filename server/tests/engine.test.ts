@@ -879,8 +879,8 @@ describe('结算与最终状元', () => {
     const result = snap.result!;
     expect(result.champion!.playerId).toBe(second.playerId);
     expect(result.champion!.awardId).toBe('FIVE_SCHOLAR');
-    // 五子登科基础 40 + 100
-    expect(scoreOf(h, second.playerId)).toBe(140);
+    // 状元统一基础 30 + 100 彩头
+    expect(scoreOf(h, second.playerId)).toBe(130);
     // 首位状元（四点红）在掷出时就是延后状态，被反超后什么也拿不到
     expect(scoreOf(h, first.playerId)).toBe(0);
     expect(snap.players.find((p) => p.id === first.playerId)?.prizes.CHAMPION).toBeUndefined();

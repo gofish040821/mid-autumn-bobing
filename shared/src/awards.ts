@@ -5,7 +5,7 @@
  * 任何新奖项都必须插入到正确的顺序位置，否则会出现
  * 「低等级覆盖高等级」的经典 bug。
  */
-import type { AwardId, PrizeKey, PrizeTier } from './types.js';
+import type { AwardId, NormalPrizeKey, PrizeKey, PrizeTier, RoomConfig } from './types.js';
 
 export type SoundId =
   | 'result_normal'
@@ -321,6 +321,31 @@ export const PRIZE_NAMES: Record<PrizeKey, string> = {
   FOUR_ADVANCE: '四进',
   DUITANG: '对堂',
   CHAMPION: '状元',
+};
+
+/** 默认奖品数量（传统会饼：一秀 32 · 二举 16 · 三红 4 · 四进 8 · 对堂 2；状元恒 1）。 */
+export const DEFAULT_PRIZE_COUNTS: Record<NormalPrizeKey, number> = {
+  ONE_SHOW: 32,
+  TWO_LIFT: 16,
+  THREE_RED: 4,
+  FOUR_ADVANCE: 8,
+  DUITANG: 2,
+};
+
+/** 默认奖品积分（状元为统一基础分 30，另加 CHAMPION_BONUS）。 */
+export const DEFAULT_PRIZE_SCORES: Record<PrizeKey, number> = {
+  ONE_SHOW: 1,
+  TWO_LIFT: 2,
+  THREE_RED: 5,
+  FOUR_ADVANCE: 8,
+  DUITANG: 15,
+  CHAMPION: 30,
+};
+
+/** 开房默认配置，客户端表单与服务端缺省值共用这一份。 */
+export const DEFAULT_ROOM_CONFIG: RoomConfig = {
+  counts: DEFAULT_PRIZE_COUNTS,
+  scores: DEFAULT_PRIZE_SCORES,
 };
 
 /** 结算页趣味称号：只用于排行榜第 2、3 名的视觉彩蛋，不是正式奖项。 */

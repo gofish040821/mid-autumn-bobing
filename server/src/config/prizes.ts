@@ -22,8 +22,11 @@
  * 玩家一眼认得。两边的详细实测见 README。
  *
  * **要调局长度，就改下面 PIECES 这一张表 —— 它是唯一的旋钮。**
+ *
+ * 五类普通奖品的份数可随开房配置（RoomConfig.counts）覆盖；状元全桌唯一，
+ * 数量恒为 1，不参与数量自定义。
  */
-import type { InventoryState, PrizeKey } from '@bobing/shared';
+import type { InventoryState, PrizeKey, RoomConfig } from '@bobing/shared';
 import { PRIZE_KEYS } from '@bobing/shared';
 
 /**
@@ -70,9 +73,17 @@ export type EndingPrizeKey = (typeof ENDING_PRIZE_KEYS)[number];
 type MissingEndingPrizeKey = Exclude<PrizeKey, EndingPrizeKey | 'CHAMPION'>;
 export const ENDING_PRIZE_KEYS_IS_COMPLETE: MissingEndingPrizeKey extends never ? true : false = true;
 
-export function buildInventory(): InventoryState {
+/** 一桌饼的默认配货，五类普通奖品份数可随 config 覆盖，状元恒 1。 */
+export function buildInventory(config?: RoomConfig): InventoryState {
   // 展开成新对象：counts 是会被对局就地改的，不能让两个牌局共用一份 PIECES。
-  const counts = { ...PIECES };
+  const counts: Record<PrizeKey, number> = {
+    ONE_SHOW: config?.counts.ONE_SHOW ?? PIECES.ONE_SHOW,
+    TWO_LIFT: config?.counts.TWO_LIFT ?? PIECES.TWO_LIFT,
+    THREE_RED: config?.counts.THREE_RED ?? PIECES.THREE_RED,
+    FOUR_ADVANCE: config?.counts.FOUR_ADVANCE ?? PIECES.FOUR_ADVANCE,
+    DUITANG: config?.counts.DUITANG ?? PIECES.DUITANG,
+    CHAMPION: 1,
+  };
   return { counts, initial: { ...counts } };
 }
 

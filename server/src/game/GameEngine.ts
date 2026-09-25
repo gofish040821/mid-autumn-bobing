@@ -7,8 +7,9 @@
  *  - 30 秒超时由服务端定时器触发，不依赖客户端；
  *  - 所有状态变化都通过 EngineEvent + 全量 Snapshot 广播，客户端状态永远可自愈。
  */
-import { AWARD_MAP, NICKNAME_MAX, PRIZE_NAMES, transitionMsFor } from '@bobing/shared';
+import { AWARD_MAP, DEFAULT_ROOM_CONFIG, NICKNAME_MAX, PRIZE_NAMES, transitionMsFor } from '@bobing/shared';
 import type {
+  AwardDefinition,
   AwardId,
   ChampionOutcome,
   ChampionState,
@@ -24,6 +25,7 @@ import type {
   PlayerState,
   PrizeKey,
   RollRecord,
+  RoomConfig,
   TurnState,
 } from '@bobing/shared';
 
@@ -84,6 +86,8 @@ interface EngineState {
   players: InternalPlayer[];
   currentTurn: TurnState | null;
   inventory: InventoryState;
+  /** 本桌的奖品配置（数量与积分），开房时定下，之后每局复用。 */
+  config: RoomConfig;
   champion: ChampionState;
   lastRoll: RollRecord | null;
   rollHistory: RollRecord[];
@@ -111,6 +115,8 @@ export interface EngineDeps {
    * 靠这里只要几十毫秒。
    */
   inventoryFor?: () => InventoryState;
+  /** 开房时的奖品配置（数量与积分）。缺省回落到 DEFAULT_ROOM_CONFIG。 */
+  config?: RoomConfig;
 }
 
 function emptyStats(): GameStats {
@@ -120,6 +126,15 @@ function emptyStats(): GameStats {
     championReplacements: 0,
     autoRolls: 0,
     durationMs: null,
+  };
+}
+
+/** 深拷贝开房配置，避免多处共享同一份 counts/scores 对象。 */
+function cloneConfig(config: RoomConfig | undefined): RoomConfig {
+  const source = config ?? DEFAULT_ROOM_CONFIG;
+  return {
+    counts: { ...source.counts },
+    scores: { ...source.scores },
   };
 }
 
@@ -157,6 +172,7 @@ export class GameEngine {
       players: [],
       currentTurn: null,
       inventory: emptyInventory(),
+      config: cloneConfig(deps.config),
       champion: emptyChampionState(),
       lastRoll: null,
       rollHistory: [],
@@ -213,6 +229,7 @@ export class GameEngine {
         counts: { ...this.state.inventory.counts },
         initial: { ...this.state.inventory.initial },
       },
+      prizeScores: { ...this.state.config.scores },
       champion: { ...this.state.champion, chaseQueue: [...this.state.champion.chaseQueue] },
       lastRoll: this.state.lastRoll ? { ...this.state.lastRoll } : null,
       rollHistory: this.state.rollHistory.map((r) => ({ ...r, dice: [...r.dice] })),
@@ -247,6 +264,18 @@ export class GameEngine {
 
   private findPlayer(playerId: string): InternalPlayer | undefined {
     return this.state.players.find((p) => p.id === playerId);
+  }
+
+  /**
+   * 某奖项在本桌的积分。
+   *
+   * 与静态判奖表（awards.ts）不同，这里读开房配置：普通奖项取各自 prizeKey 的
+   * 积分，状元档取统一的 CHAMPION 基础分。NONE 没有 prizeKey，恒为 0。
+   */
+  private scoreForAward(award: AwardDefinition): number {
+    const key = award.prizeKey;
+    if (!key) return 0;
+    return this.state.config.scores[key] ?? award.score;
   }
 
   private flush(events: EngineEvent[]): void {
@@ -634,7 +663,7 @@ export class GameEngine {
 
     this.resetRoundState();
     const count = this.state.players.length;
-    this.state.inventory = this.deps.inventoryFor?.() ?? buildInventory();
+    this.state.inventory = this.deps.inventoryFor?.() ?? buildInventory(this.state.config);
     this.state.startedAt = this.clock.now();
     this.state.autoStartAt = null;
     this.clearAutoStartTimer();
@@ -773,7 +802,7 @@ export class GameEngine {
 
     let scoreGained = 0;
     if (resolution.granted && resolution.prizeKey) {
-      scoreGained = award.score;
+      scoreGained = this.scoreForAward(award);
       addScore(player, scoreGained);
       addPrize(player, resolution.prizeKey);
     }
@@ -985,7 +1014,7 @@ export class GameEngine {
       const player = this.findPlayer(championPlayerId);
       const award = this.state.champion.awardId ? AWARD_MAP[this.state.champion.awardId] : null;
       if (player && award) {
-        baseScore = award.score;
+        baseScore = this.scoreForAward(award);
         // 幂等保护：状元奖在整个房间生命周期内只发一次
         const granted = !this.state.championPrizeGranted && grantChampionPrize(this.state.inventory);
         if (granted) {

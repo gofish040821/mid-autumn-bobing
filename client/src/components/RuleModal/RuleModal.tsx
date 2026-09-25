@@ -44,6 +44,19 @@ function prizeCount(initial: InventoryState | null, key: PrizeKey): string | nul
   return n > 0 ? `${n} 份` : null;
 }
 
+/**
+ * 某奖项在本桌的积分。开房配置没下发（快照未就绪）时回落到判奖表默认值。
+ * 状元档的 prizeKey 是 CHAMPION，NONE 没有 prizeKey。
+ */
+function scoreOf(
+  award: AwardDefinition,
+  prizeScores: Record<PrizeKey, number> | null,
+): number {
+  const key = award.prizeKey;
+  if (!key) return 0;
+  return prizeScores?.[key] ?? award.score;
+}
+
 /** 入门三步。 */
 const STEPS: readonly string[] = [
   '匿名进入同一桌',
@@ -55,9 +68,11 @@ interface AwardRowProps {
   award: AwardDefinition;
   /** 名次序号（= award.order） */
   ordinal: number;
+  /** 本桌实际积分（来自开房配置），NONE 为 0 */
+  score: number;
 }
 
-function AwardRow({ award, ordinal }: AwardRowProps): JSX.Element {
+function AwardRow({ award, ordinal, score }: AwardRowProps): JSX.Element {
   const isChampion = award.tier === 'CHAMPION';
   const isNone = award.tier === 'NONE';
 
@@ -98,7 +113,7 @@ function AwardRow({ award, ordinal }: AwardRowProps): JSX.Element {
       </span>
 
       <span className={'rulemodal__score t-nums' + (isChampion ? ' rulemodal__score--gold' : '')}>
-        {award.score > 0 ? `+${award.score} 分` : '0 分'}
+        {score > 0 ? `+${score} 分` : '0 分'}
       </span>
     </li>
   );
@@ -109,6 +124,7 @@ export default function RuleModal(): JSX.Element {
   const closeRules = useGameStore((s) => s.closeRules);
   const reducedMotion = useGameStore((s) => s.reducedMotion);
   const inventory = useGameStore((s) => s.snapshot?.inventory ?? null);
+  const prizeScores = useGameStore((s) => s.snapshot?.prizeScores ?? null);
 
   /* 打开时锁住 body 滚动，关闭 / 卸载时还原 */
   useEffect(() => {
@@ -216,7 +232,12 @@ export default function RuleModal(): JSX.Element {
                       <p className="rulemodal__group">状元档 · 第 1 ~ 7 档（金色圆牌）</p>
                       <ul className="rulemodal__list">
                         {championAwards.map((award) => (
-                          <AwardRow key={award.id} award={award} ordinal={award.order} />
+                          <AwardRow
+                            key={award.id}
+                            award={award}
+                            ordinal={award.order}
+                            score={scoreOf(award, prizeScores)}
+                          />
                         ))}
                       </ul>
                       <p className="rulemodal__note rulemodal__note--gold">
@@ -226,10 +247,20 @@ export default function RuleModal(): JSX.Element {
                       <p className="rulemodal__group">其余奖项 · 第 8 ~ 12 档</p>
                       <ul className="rulemodal__list">
                         {normalAwards.map((award) => (
-                          <AwardRow key={award.id} award={award} ordinal={award.order} />
+                          <AwardRow
+                            key={award.id}
+                            award={award}
+                            ordinal={award.order}
+                            score={scoreOf(award, prizeScores)}
+                          />
                         ))}
                         {noneAwards.map((award) => (
-                          <AwardRow key={award.id} award={award} ordinal={award.order} />
+                          <AwardRow
+                            key={award.id}
+                            award={award}
+                            ordinal={award.order}
+                            score={scoreOf(award, prizeScores)}
+                          />
                         ))}
                       </ul>
                     </section>
@@ -256,9 +287,9 @@ export default function RuleModal(): JSX.Element {
                         })}
                       </ul>
                       <p className="rulemodal__note">
-                        一桌饼是定量的，人多人少都是这一张，份数与会饼人数无关。份数按传统会饼配
-                        （1 : 2 : 4 : 8 : 16 : 32），所以一秀最多、状元只有一个。库存领完不补；同一
-                        等级再次博出时只显示骰型，不再发奖、不加分。
+                        一桌饼是定量的，人多人少都是这一张，份数与会饼人数无关。默认份数按传统会饼配
+                        （1 : 2 : 4 : 8 : 16 : 32），所以一秀最多、状元只有一个；房主开房时可自定义每样
+                        份数与积分。库存领完不补；同一等级再次博出时只显示骰型，不再发奖、不加分。
                       </p>
                     </section>
 
