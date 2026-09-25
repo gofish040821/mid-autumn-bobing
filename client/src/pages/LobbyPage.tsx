@@ -10,14 +10,17 @@ import type { ChangeEvent, FormEvent } from 'react';
 import { motion } from 'framer-motion';
 
 import {
+  DEFAULT_ROOM_CONFIG,
   NICKNAME_MAX,
   NICKNAME_MIN,
+  PRIZE_KEYS,
+  PRIZE_NAMES,
   ROOM_CODE_LENGTH,
   isValidRoomCode,
   normalizeRoomCode,
   pickRandomNickname,
 } from '@bobing/shared';
-import type { PlayerState } from '@bobing/shared';
+import type { NormalPrizeKey, PlayerState, PrizeKey, RoomConfig } from '@bobing/shared';
 
 import TopBar from '../components/Common/TopBar';
 import SiteFooter from '../components/Common/SiteFooter';
@@ -86,6 +89,7 @@ export default function LobbyPage(): JSX.Element {
   const clearError = useGameStore((s) => s.clearError);
   const roomCode = useGameStore((s) => s.roomCode);
   const createRoom = useGameStore((s) => s.createRoom);
+  const clearRoom = useGameStore((s) => s.clearRoom);
   const useRoomCode = useGameStore((s) => s.useRoomCode);
   const creatingRoom = useGameStore((s) => s.creatingRoom);
   const isHost = useGameStore(selectIsHost);
@@ -97,6 +101,11 @@ export default function LobbyPage(): JSX.Element {
   const [codeInput, setCodeInput] = useState<string>('');
   const [codeOpen, setCodeOpen] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
+  const [configOpen, setConfigOpen] = useState<boolean>(false);
+  const [config, setConfig] = useState<RoomConfig>(() => ({
+    counts: { ...DEFAULT_ROOM_CONFIG.counts },
+    scores: { ...DEFAULT_ROOM_CONFIG.scores },
+  }));
   const [narrow, setNarrow] = useState<boolean>(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
     return window.matchMedia(NARROW_QUERY).matches;
@@ -139,6 +148,30 @@ export default function LobbyPage(): JSX.Element {
   const handleCreateRoom = async (): Promise<void> => {
     if (lastError) clearError();
     await createRoom();
+  };
+
+  const handleCreateRoomWithConfig = async (): Promise<void> => {
+    if (lastError) clearError();
+    await createRoom(config);
+  };
+
+  const handleResetConfig = (): void => {
+    setConfig({
+      counts: { ...DEFAULT_ROOM_CONFIG.counts },
+      scores: { ...DEFAULT_ROOM_CONFIG.scores },
+    });
+  };
+
+  const handleCountChange = (key: NormalPrizeKey, raw: string): void => {
+    const n = Math.floor(Number(raw));
+    const value = Number.isFinite(n) ? Math.max(0, Math.min(1000, n)) : 0;
+    setConfig((c) => ({ ...c, counts: { ...c.counts, [key]: value } }));
+  };
+
+  const handleScoreChange = (key: PrizeKey, raw: string): void => {
+    const n = Math.floor(Number(raw));
+    const value = Number.isFinite(n) ? Math.max(0, Math.min(100000, n)) : 0;
+    setConfig((c) => ({ ...c, scores: { ...c.scores, [key]: value } }));
   };
 
   const handleCodeSubmit = (event: FormEvent<HTMLFormElement>): void => {
@@ -238,6 +271,16 @@ export default function LobbyPage(): JSX.Element {
                   </button>
                 </div>
                 <p className="lobby-room__note">把链接发给朋友，他们打开就能坐进同一桌。</p>
+                <button
+                  type="button"
+                  className="lobby-room__back t-muted"
+                  onClick={() => {
+                    clearRoom();
+                    if (lastError) clearError();
+                  }}
+                >
+                  ← 返回重新设置奖品
+                </button>
               </>
             ) : codeOpen ? (
               <form className="lobby-room__code-form" onSubmit={handleCodeSubmit}>
@@ -294,6 +337,87 @@ export default function LobbyPage(): JSX.Element {
                 >
                   {creatingRoom ? '正在开桌……' : '开一张新桌'}
                 </button>
+                <button
+                  type="button"
+                  className="lobby-room__join-existing t-muted"
+                  onClick={() => {
+                    setConfigOpen((v) => !v);
+                    if (lastError) clearError();
+                  }}
+                >
+                  {configOpen ? '收起自定义' : '自定义奖品数量与积分'}
+                </button>
+
+                {configOpen && (
+                  <div className="lobby-config">
+                    <div className="lobby-config__head">
+                      <span className="lobby-config__title t-kai">自定义奖品</span>
+                      <span className="lobby-config__hint t-muted">状元数量固定为 1 份</span>
+                    </div>
+
+                    <div className="lobby-config__cols">
+                      <span className="lobby-config__col-head t-muted">奖品</span>
+                      <span className="lobby-config__col-head t-muted">数量</span>
+                      <span className="lobby-config__col-head t-muted">积分</span>
+                    </div>
+
+                    {PRIZE_KEYS.map((key) => {
+                      const isChampion = key === 'CHAMPION';
+                      return (
+                        <div className="lobby-config__row" key={key}>
+                          <span className={'lobby-config__name' + (isChampion ? ' lobby-config__name--champion' : '')}>
+                            {PRIZE_NAMES[key]}
+                          </span>
+                          {isChampion ? (
+                            <span className="lobby-config__fixed t-nums">1</span>
+                          ) : (
+                            <input
+                              className="lobby-config__input t-nums"
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              max={1000}
+                              value={config.counts[key as NormalPrizeKey]}
+                              onChange={(event) => handleCountChange(key as NormalPrizeKey, event.target.value)}
+                              aria-label={`${PRIZE_NAMES[key]}数量`}
+                            />
+                          )}
+                          <input
+                            className="lobby-config__input t-nums"
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            max={100000}
+                            value={config.scores[key]}
+                            onChange={(event) => handleScoreChange(key, event.target.value)}
+                            aria-label={`${PRIZE_NAMES[key]}积分`}
+                          />
+                        </div>
+                      );
+                    })}
+
+                    <div className="lobby-config__actions">
+                      <button
+                        type="button"
+                        className="btn btn--primary btn--block"
+                        onClick={() => {
+                          void handleCreateRoomWithConfig();
+                        }}
+                        disabled={creatingRoom}
+                      >
+                        {creatingRoom ? '正在开桌……' : '按以上设置开桌'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--sm"
+                        onClick={handleResetConfig}
+                      >
+                        恢复默认
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <button
                   type="button"
                   className="lobby-room__join-existing t-muted"

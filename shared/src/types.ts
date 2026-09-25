@@ -34,6 +34,22 @@ export type PrizeKey =
   | 'DUITANG'
   | 'CHAMPION';
 
+/** 除状元外的五类普通奖品。状元全桌唯一，数量恒为 1，不参与数量自定义。 */
+export type NormalPrizeKey = Exclude<PrizeKey, 'CHAMPION'>;
+
+/**
+ * 开房时可自定义的奖品配置。
+ *
+ * 状元数量恒为 1（只发一次给最终状元），所以 counts 只包含五类普通奖品；
+ * scores 则包含全部六类——状元的积分取「统一基础分」，另加 CHAMPION_BONUS。
+ */
+export interface RoomConfig {
+  /** 五类普通奖品的数量。 */
+  counts: Record<NormalPrizeKey, number>;
+  /** 每类奖品的积分；状元为统一基础分。 */
+  scores: Record<PrizeKey, number>;
+}
+
 export type PrizeTier = 'NONE' | 'NORMAL' | 'CHAMPION';
 
 /** 服务端状态机阶段。 */
@@ -241,6 +257,8 @@ export interface GameSnapshot {
   players: PlayerState[];
   currentTurn: TurnState | null;
   inventory: InventoryState;
+  /** 每类奖品的积分（状元为统一基础分），供规则说明与展示读取，随开房配置变化。 */
+  prizeScores: Record<PrizeKey, number>;
   champion: ChampionState;
   lastRoll: RollRecord | null;
   rollHistory: RollRecord[];

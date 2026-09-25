@@ -15,6 +15,7 @@ import type {
   RollRecord,
   SiteStats,
 } from './types.js';
+import type { RoomConfigInput } from './schemas.js';
 
 /* ------------------------------------------------------------------ *
  * Payloads
@@ -54,8 +55,11 @@ export interface RollPayload {
  * ------------------------------------------------------------------ */
 
 export interface ClientToServerEvents {
-  /** 开一张新桌，返回房间码。房间码由服务端生成，客户端不能指定。 */
-  'room:create': (payload: undefined, ack: (res: Ack<CreateRoomResult>) => void) => void;
+  /** 开一张新桌，返回房间码。房间码由服务端生成，客户端不能指定。可携带自定义奖品配置。 */
+  'room:create': (
+    payload: RoomConfigInput | undefined,
+    ack: (res: Ack<CreateRoomResult>) => void,
+  ) => void;
   'room:join': (payload: JoinPayload, ack: (res: Ack<JoinResult>) => void) => void;
   'room:sync': (payload: SyncPayload, ack: (res: Ack<GameSnapshot>) => void) => void;
   'player:setNickname': (payload: SetNicknamePayload, ack: (res: Ack<PlayerState>) => void) => void;
