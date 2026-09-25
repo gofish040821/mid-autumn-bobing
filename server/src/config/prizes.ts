@@ -1,21 +1,46 @@
 /**
- * 一桌饼的配货。
+ * 一桌饼的配货 —— 传统会饼的经典份数，1 : 2 : 4 : 8 : 16 : 32。
  *
- * 份数 ∝ 自然概率，比例由「状元只有一份」定死：
+ *      一秀 32 · 二举 16 · 三红 4 · 四进 8 · 对堂 2 · 状元 1，共 63 份
  *
- *     份数(k) = max(1, round( 命中组合数(k) / 命中组合数(状元) ))
+ * **这是一张人工定死的表，不是算出来的。**
  *
- * 概率来自判奖表对全部 6^6 种点数的穷举（见 game/AwardOdds.ts），
- * 所以这里**没有任何人工旋钮**——改判奖表，份数自动跟着变。
+ * 早先的版本拿自然概率做比例（份数 ∝ 概率，概率由穷举 6^6 得出），
+ * 好处是五个普通池的期望清空时间都落在 65~85 掷，「谁都不是短板」。
+ * 换成传统份数就把那个性质丢掉了，现在是**四进一个人拖后腿**：
  *
- *      一秀 31 · 二举 17 · 三红 4 · 四进 3 · 对堂 1 · 状元 1，共 57 份
+ *     池     份数   自然概率   期望清空掷数
+ *     一秀    32    37.29%         86
+ *     二举    16    19.93%         80
+ *     三红     4     5.36%         75
+ *     四进     8     4.02%        199   ← 实测 72% 的局最后都在等它
+ *     对堂     2     1.54%        130
+ *     状元     1     1.20%         83
  *
- * 份数与人数无关：一张会饼是定量的，人多人少都是这一张。
- * 于是局长度也不随人数变，2 人和 15 人一样长。
+ * 代价是局长度：实测中位约 9 分钟、p90 约 14 分钟，而且**没有上限**
+ * （旧配货中位约 4.8 分钟）。收益是这组份数就是传统会饼本来的样子，
+ * 玩家一眼认得。两边的详细实测见 README。
+ *
+ * **要调局长度，就改下面 PIECES 这一张表 —— 它是唯一的旋钮。**
  */
 import type { InventoryState, PrizeKey } from '@bobing/shared';
 import { PRIZE_KEYS } from '@bobing/shared';
-import { awardOdds } from '../game/AwardOdds.js';
+
+/**
+ * 一桌饼的传统配货。
+ *
+ * 类型写成 `Record<PrizeKey, number>` 是**编译期断言**：将来给 PrizeKey
+ * 添了新奖池却忘了在这里配货，这一行立刻报错（少一个池子会让「博到饼尽」
+ * 这道闸门永远差一样没过零，牌局再也收不了席，而且要走完整局才看得出来）。
+ */
+const PIECES: Record<PrizeKey, number> = {
+  ONE_SHOW: 32,
+  TWO_LIFT: 16,
+  THREE_RED: 4,
+  FOUR_ADVANCE: 8,
+  DUITANG: 2,
+  CHAMPION: 1,
+};
 
 /**
  * 收口用的奖池：这五个池子全部博空，本局就结束。
@@ -46,23 +71,16 @@ type MissingEndingPrizeKey = Exclude<PrizeKey, EndingPrizeKey | 'CHAMPION'>;
 export const ENDING_PRIZE_KEYS_IS_COMPLETE: MissingEndingPrizeKey extends never ? true : false = true;
 
 export function buildInventory(): InventoryState {
-  const odds = awardOdds().byPrizeKey;
-  // 状元只有一份，于是它天然成为换算基准：别的池子按「几个状元那么常见」配货。
-  const unit = odds.CHAMPION;
-
-  const counts = {} as Record<PrizeKey, number>;
-  for (const key of PRIZE_KEYS) {
-    counts[key] = key === 'CHAMPION' ? 1 : Math.max(1, Math.round(odds[key] / unit));
-  }
-
+  // 展开成新对象：counts 是会被对局就地改的，不能让两个牌局共用一份 PIECES。
+  const counts = { ...PIECES };
   return { counts, initial: { ...counts } };
 }
 
 /**
  * 空桌：六样全部为 0。
  *
- * **必须写死全零，不能复用 buildInventory()。** 配货有 max(1, …) 下限，
- * 复用会让「空桌」返回一堆 1，重开之后库存清不干净。
+ * **必须写死全零，不能复用 buildInventory()。** 那样「空桌」会返回一整套
+ * 32/16/4/8/2/1 的配货，重开之后库存根本清不干净。
  */
 export function emptyInventory(): InventoryState {
   const counts = {} as Record<PrizeKey, number>;

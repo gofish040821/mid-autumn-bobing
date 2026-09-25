@@ -1,10 +1,12 @@
 /**
- * DiceService / AwardOdds / 库存闸门 测试。
+ * DiceService / 库存闸门 测试。
  *
  * 重点：
  *  - 随机骰子的边界（rng 返回 0 / 1 / NaN 都不能越界）；
- *  - 判奖表的**自然概率**与穷举计数逐位对齐；
  *  - 收席闸门认得全五个普通奖池、且绝不把状元算进去。
+ *
+ * 判奖表的自然概率（各奖池命中的组合数）由 rules.test.ts 独立穷举核对，
+ * 这里不再重复一份。
  */
 import { describe, expect, it } from 'vitest';
 import { PRIZE_KEYS } from '@bobing/shared';
@@ -17,7 +19,6 @@ import {
   emptyInventory,
 } from '../src/config/prizes';
 import { MAX_PLAYERS, MIN_PLAYERS, TURN_TIMEOUT_MS, TURN_TIMEOUT_OFFLINE_MS } from '../src/config/gameConfig';
-import { awardOdds } from '../src/game/AwardOdds';
 import { randomFace, rollRawDice } from '../src/game/DiceService';
 import { isInventoryExhausted } from '../src/game/PrizeService';
 import { isValidDice } from '../src/game/RuleEngine';
@@ -74,59 +75,6 @@ describe('DiceService · 基础随机', () => {
       if (new Set(dice).size > 1) sawDifferentFaces = true;
     }
     expect(sawDifferentFaces).toBe(true);
-  });
-});
-
-/* ------------------------------------------------------------------ *
- * 判奖表的自然概率
- * ------------------------------------------------------------------ */
-
-describe('AwardOdds · 穷举出来的自然概率', () => {
-  const odds = awardOdds();
-
-  it('分母就是 6^6', () => {
-    expect(odds.total).toBe(46656);
-  });
-
-  it('每个奖池命中的组合数与判奖表逐一对应', () => {
-    // 这几个数是「六颗均匀骰子」下的真值，改判奖表必然要一起改这里。
-    // 它们同时是 prizes.ts 配货比例的分子 —— 两处必须一致。
-    expect(odds.byPrizeKey.ONE_SHOW).toBe(17400);
-    expect(odds.byPrizeKey.TWO_LIFT).toBe(9300);
-    expect(odds.byPrizeKey.THREE_RED).toBe(2500);
-    expect(odds.byPrizeKey.FOUR_ADVANCE).toBe(1875);
-    expect(odds.byPrizeKey.DUITANG).toBe(720);
-    expect(odds.byPrizeKey.CHAMPION).toBe(561);
-  });
-
-  it('状元档 = 七个 Champion Tier 之和，且只有 1.2024%', () => {
-    const championTiers = [
-      'FOUR_FOUR',
-      'FIVE_SCHOLAR',
-      'FIVE_FOUR',
-      'SIX_BLACK',
-      'BROCADE',
-      'SIX_FOUR',
-      'CHAMPION_FLOWER',
-    ] as const;
-    const sum = championTiers.reduce((acc, id) => acc + odds.byAwardId[id], 0);
-    expect(sum).toBe(odds.byPrizeKey.CHAMPION);
-    expect(sum).toBe(561);
-
-    // 这个数字是「约四分之一的牌局没有状元」的全部来源，值得写死一次。
-    expect(sum / odds.total).toBeCloseTo(0.012024, 6);
-  });
-
-  it('按奖项分类的总和等于全部组合数（不重不漏）', () => {
-    const sum = Object.values(odds.byAwardId).reduce((a, b) => a + b, 0);
-    expect(sum).toBe(odds.total);
-  });
-
-  it('无奖占了将近三成，这是判奖表的性质、不是 bug', () => {
-    expect(odds.byAwardId.NONE).toBe(14300);
-    expect(odds.byPrizeKey.ONE_SHOW + odds.byPrizeKey.TWO_LIFT + odds.byPrizeKey.THREE_RED
-      + odds.byPrizeKey.FOUR_ADVANCE + odds.byPrizeKey.DUITANG + odds.byPrizeKey.CHAMPION
-      + odds.byAwardId.NONE).toBe(odds.total);
   });
 });
 
