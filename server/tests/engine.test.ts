@@ -5,7 +5,7 @@
  * 时间与骰子都被完全掌控，所以「30 秒超时」「饼尽收席」这些
  * 平时要靠运气的路径，在这里都是确定性的。
  *
- * 关于收席：默认牌是 57 份（约 125 掷），在这里跑一局要几分钟。
+ * 关于收席：默认牌是 63 份（约 130 掷），在这里跑一局要几分钟。
  * 需要跑到 FINISHED 的用例统一换成「只剩最后一份饼」的小牌
  * （见 lastPieceInventory），4 掷就能博完，而且走的是同一条闸门。
  */
@@ -83,7 +83,7 @@ class ScriptRng {
 /**
  * 一副「最后一搏」的小牌：指定的那一样只剩 1 份，其余普通饼全空。
  *
- * 用它开局，几步之内就能博到饼尽 —— 收席这条路径在默认牌（57 份、约 125 掷）
+ * 用它开局，几步之内就能博到饼尽 —— 收席这条路径在默认牌（63 份、约 130 掷）
  * 上要跑好几分钟，在这里只要 4 掷，走的却是同一条闸门。
  *
  * 状元仍是 1 份：它不参与收席闸门（见 config/prizes.ts 的 ENDING_PRIZE_KEYS）。
@@ -141,7 +141,7 @@ function createHarness(opts: { inventory?: InventoryState } = {}): Harness {
     emit: (batch) => {
       events.push(...batch);
     },
-    // 不传就是正常发牌（一桌 57 份）；传了就用这副小牌，几步就能博到饼尽
+    // 不传就是正常发牌（一桌 63 份）；传了就用这副小牌，几步就能博到饼尽
     ...(opts.inventory ? { inventoryFor: () => structuredClone(opts.inventory!) } : {}),
   });
   return { engine, clock, rng, events, players: [], actions: 0, guestSeq: 0 };
@@ -879,8 +879,8 @@ describe('结算与最终状元', () => {
     const result = snap.result!;
     expect(result.champion!.playerId).toBe(second.playerId);
     expect(result.champion!.awardId).toBe('FIVE_SCHOLAR');
-    // 五子登科基础 40 + 100
-    expect(scoreOf(h, second.playerId)).toBe(140);
+    // 状元统一基础 30 + 100 彩头
+    expect(scoreOf(h, second.playerId)).toBe(130);
     // 首位状元（四点红）在掷出时就是延后状态，被反超后什么也拿不到
     expect(scoreOf(h, first.playerId)).toBe(0);
     expect(snap.players.find((p) => p.id === first.playerId)?.prizes.CHAMPION).toBeUndefined();
@@ -1003,11 +1003,11 @@ describe('博到饼尽', () => {
     h.engine.dispose();
   });
 
-  it('还没博完就不会收席 —— 默认的一桌 57 份要走很久', () => {
+  it('还没博完就不会收席 —— 默认的一桌 63 份要走很久', () => {
     const h = createHarness();
     fill(h, 4);
     startGame(h);
-    // 一秀 31 份，博掉 8 份还远远没完
+    // 一秀 32 份，博掉 8 份还远远没完
     for (let i = 0; i < 8; i += 1) playTurn(h, D_ONE_SHOW);
     const snap = h.engine.snapshot();
     expect(snap.phase).toBe('NORMAL_TURN');

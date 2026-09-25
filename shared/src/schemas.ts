@@ -58,6 +58,35 @@ export const rollPayloadSchema = z.object({
 /** game:start / game:restart 不接受任何有效负载。 */
 export const emptyPayloadSchema = z.unknown().optional();
 
+/** 单项奖品数量：0~1000，整数。 */
+const prizeCountSchema = z.number().int().min(0).max(1000);
+/** 单项奖品积分：0~100000，整数。 */
+const prizeScoreSchema = z.number().int().min(0).max(100000);
+
+/**
+ * 开房配置。counts 只含五类普通奖品（状元恒 1），scores 含全部六类。
+ * 缺省不传时服务端回落到 DEFAULT_ROOM_CONFIG。
+ */
+export const roomConfigSchema = z.object({
+  counts: z.object({
+    ONE_SHOW: prizeCountSchema,
+    TWO_LIFT: prizeCountSchema,
+    THREE_RED: prizeCountSchema,
+    FOUR_ADVANCE: prizeCountSchema,
+    DUITANG: prizeCountSchema,
+  }),
+  scores: z.object({
+    ONE_SHOW: prizeScoreSchema,
+    TWO_LIFT: prizeScoreSchema,
+    THREE_RED: prizeScoreSchema,
+    FOUR_ADVANCE: prizeScoreSchema,
+    DUITANG: prizeScoreSchema,
+    CHAMPION: prizeScoreSchema,
+  }),
+});
+
+export type RoomConfigInput = z.input<typeof roomConfigSchema>;
+
 export type JoinPayloadInput = z.input<typeof joinPayloadSchema>;
 export type RollPayloadInput = z.input<typeof rollPayloadSchema>;
 

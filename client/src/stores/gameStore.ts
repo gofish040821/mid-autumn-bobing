@@ -18,7 +18,14 @@ import {
   isValidRoomCode,
   normalizeRoomCode,
 } from '@bobing/shared';
-import type { GameSnapshot, LocalIdentity, PlayerState, RollRecord, SiteStats } from '@bobing/shared';
+import type {
+  GameSnapshot,
+  LocalIdentity,
+  PlayerState,
+  RollRecord,
+  RoomConfig,
+  SiteStats,
+} from '@bobing/shared';
 
 import { audio } from '../audio/AudioManager';
 import {
@@ -134,8 +141,10 @@ interface GameStore {
   setVolume: (v: number) => void;
   setReducedMotion: (v: boolean) => void;
   rename: (nickname: string) => Promise<void>;
-  /** 开一张新桌，成功后房间码写进 URL 与 store。 */
-  createRoom: () => Promise<boolean>;
+  /** 开一张新桌，成功后房间码写进 URL 与 store。可携带自定义奖品配置。 */
+  createRoom: (config?: RoomConfig) => Promise<boolean>;
+  /** 放弃当前选中的房间码，回到选桌状态（可重新自定义奖品数量再开桌）。 */
+  clearRoom: () => void;
   /** 用房间码加入一张已存在的桌（入席前调用）。 */
   useRoomCode: (roomId: string) => boolean;
   join: (nickname: string) => Promise<boolean>;
@@ -450,11 +459,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!res.ok) get().pushToast(res.message, 'warn');
   },
 
-  createRoom: async () => {
+  createRoom: async (config) => {
     if (get().creatingRoom) return false;
     audio.unlock();
     set({ creatingRoom: true, lastError: null });
-    const res = await emitCreateRoom();
+    const res = await emitCreateRoom(config);
     set({ creatingRoom: false });
 
     if (!res.ok) {
@@ -464,6 +473,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
     applyRoom(res.data.roomId, set);
     return true;
+  },
+
+  clearRoom: () => {
+    applyRoom(null, set);
   },
 
   useRoomCode: (roomId) => {

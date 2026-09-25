@@ -6,14 +6,14 @@
  *  - 库存 = 0 时骰型照常显示，但标为「已领完」，不发奖不加分；
  *  - Champion Tier 一律延后，只在结算时发给最终状元一个人。
  *
- * 配货规则（份数 ∝ 自然概率，比例由「状元只有一份」定死）见 config/prizes.ts。
+ * 配货规则（默认传统会饼，见 config/prizes.ts）：
+ *   一秀 32 · 二举 16 · 三红 4 · 四进 8 · 对堂 2 · 状元 1。
  */
 import { describe, expect, it } from 'vitest';
 import { AWARD_MAP, PRIZE_KEYS } from '@bobing/shared';
 import type { InventoryState, PrizeKey } from '@bobing/shared';
 
 import { buildInventory, emptyInventory } from '../src/config/prizes';
-import { awardOdds } from '../src/game/AwardOdds';
 import { consumePrize, grantChampionPrize, hasStock } from '../src/game/PrizeService';
 
 const expectInventory = (inv: InventoryState, expected: Record<PrizeKey, number>): void => {
@@ -31,32 +31,21 @@ const CHAMPION_IDS = [
 ] as const;
 
 describe('buildInventory · 一桌饼的配货', () => {
-  it('一桌 57 份：一秀31 二举17 三红4 四进3 对堂1 状元1', () => {
+  it('默认 63 份：一秀32 二举16 三红4 四进8 对堂2 状元1', () => {
     expectInventory(buildInventory(), {
-      ONE_SHOW: 31,
-      TWO_LIFT: 17,
+      ONE_SHOW: 32,
+      TWO_LIFT: 16,
       THREE_RED: 4,
-      FOUR_ADVANCE: 3,
-      DUITANG: 1,
+      FOUR_ADVANCE: 8,
+      DUITANG: 2,
       CHAMPION: 1,
     });
-  });
-
-  it('每一份的数量都等于 max(1, round(该奖池概率 / 状元概率))', () => {
-    // 断言**公式**而不是魔数：将来判奖表改了、份数跟着变，
-    // 这一条照样成立；而上一条的魔数会炸，正好提醒改的人去看是不是有意的。
-    const odds = awardOdds().byPrizeKey;
-    const inv = buildInventory();
-    for (const key of PRIZE_KEYS) {
-      const expected = key === 'CHAMPION' ? 1 : Math.max(1, Math.round(odds[key] / odds.CHAMPION));
-      expect(inv.counts[key]).toBe(expected);
-    }
   });
 
   it('份数与人数无关 —— 一张会饼是定量的，人多人少都是这一张', () => {
     const inv = buildInventory();
     expect(inv.counts).toEqual(buildInventory().counts);
-    expect(inv.counts.ONE_SHOW).toBe(31);
+    expect(inv.counts.ONE_SHOW).toBe(32);
   });
 
   it('状元永远只有一个——七种状元骰型共用这一份库存', () => {
@@ -74,7 +63,7 @@ describe('buildInventory · 一桌饼的配货', () => {
   it('initial 是 counts 的快照，之后改动 counts 不会污染 initial', () => {
     const inv = buildInventory();
     inv.counts.ONE_SHOW = 0;
-    expect(inv.initial.ONE_SHOW).toBe(31);
+    expect(inv.initial.ONE_SHOW).toBe(32);
     expect(inv.initial).not.toBe(inv.counts);
   });
 

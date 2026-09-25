@@ -219,6 +219,106 @@
   cursor: pointer;
 }
 
+/* ---- 自定义奖品数量与积分 ---- */
+
+.lobby-config {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed var(--gold-line);
+  border-radius: var(--radius);
+  background: rgba(255, 253, 246, 0.55);
+}
+
+.lobby-config__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lobby-config__title {
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+}
+
+.lobby-config__hint {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.lobby-config__cols,
+.lobby-config__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 0.8fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.lobby-config__col-head {
+  font-size: 12px;
+  text-align: center;
+  letter-spacing: 0.08em;
+}
+
+.lobby-config__col-head:first-child,
+.lobby-config__name {
+  text-align: left;
+}
+
+.lobby-config__name {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.lobby-config__name--champion {
+  color: var(--cinnabar);
+  font-weight: 600;
+}
+
+.lobby-config__fixed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  font-size: 15px;
+  color: var(--ink-faint);
+}
+
+.lobby-config__input {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px 8px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--ink);
+  background: rgba(255, 253, 246, 0.92);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color 0.18s var(--ease-soft), box-shadow 0.18s var(--ease-soft);
+}
+
+.lobby-config__input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(177, 138, 85, 0.18);
+}
+
+.lobby-config__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.lobby-config__actions .btn--ghost {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 /* ---- 大厅里的邀请行 ---- */
 
 .lobby-head__room {

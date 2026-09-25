@@ -17,6 +17,7 @@ import type { Server, Socket } from 'socket.io';
 import {
   joinPayloadSchema,
   rollPayloadSchema,
+  roomConfigSchema,
   sessionTokenSchema,
   setNicknamePayloadSchema,
   syncPayloadSchema,
@@ -105,8 +106,19 @@ export function registerSocketHandlers(
     // 新连上的人先拿一份当前统计，不用等下一次事件
     socket.emit('stats:updated', { stats: statsNow(rooms, players, stats) });
 
-    socket.on('room:create', (_payload, ack) => {
-      const created = rooms.create();
+    socket.on('room:create', (payload, ack) => {
+      // 客户端不传 config 时 Socket.IO 会把 undefined 序列化成 null，
+      // 所以这里用 nullish 而非 optional，避免「开一张新桌」误报配置错误。
+      const parsed = roomConfigSchema.nullish().safeParse(payload);
+      if (!parsed.success) {
+        ack({
+          ok: false,
+          error: 'INVALID_PAYLOAD',
+          message: parsed.error.issues[0]?.message ?? '奖品配置不正确',
+        });
+        return;
+      }
+      const created = rooms.create(parsed.data ?? undefined);
       if (!created.ok) {
         ack({ ok: false, error: 'ROOM_LIMIT_REACHED', message: created.message });
         return;

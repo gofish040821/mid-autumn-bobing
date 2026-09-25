@@ -1,21 +1,15 @@
 /**
  * 一桌饼的配货。
  *
- * 份数 ∝ 自然概率，比例由「状元只有一份」定死：
+ * 默认按传统会饼固定配货：
  *
- *     份数(k) = max(1, round( 命中组合数(k) / 命中组合数(状元) ))
+ *      一秀 32 · 二举 16 · 三红 4 · 四进 8 · 对堂 2 · 状元 1，共 63 份
  *
- * 概率来自判奖表对全部 6^6 种点数的穷举（见 game/AwardOdds.ts），
- * 所以这里**没有任何人工旋钮**——改判奖表，份数自动跟着变。
- *
- *      一秀 31 · 二举 17 · 三红 4 · 四进 3 · 对堂 1 · 状元 1，共 57 份
- *
+ * 状元只有一份；其余五类的份数可随开房配置（RoomConfig）覆盖。
  * 份数与人数无关：一张会饼是定量的，人多人少都是这一张。
- * 于是局长度也不随人数变，2 人和 15 人一样长。
  */
-import type { InventoryState, PrizeKey } from '@bobing/shared';
-import { PRIZE_KEYS } from '@bobing/shared';
-import { awardOdds } from '../game/AwardOdds.js';
+import type { InventoryState, PrizeKey, RoomConfig } from '@bobing/shared';
+import { DEFAULT_PRIZE_COUNTS, PRIZE_KEYS } from '@bobing/shared';
 
 /**
  * 收口用的奖池：这五个池子全部博空，本局就结束。
@@ -45,16 +39,15 @@ export type EndingPrizeKey = (typeof ENDING_PRIZE_KEYS)[number];
 type MissingEndingPrizeKey = Exclude<PrizeKey, EndingPrizeKey | 'CHAMPION'>;
 export const ENDING_PRIZE_KEYS_IS_COMPLETE: MissingEndingPrizeKey extends never ? true : false = true;
 
-export function buildInventory(): InventoryState {
-  const odds = awardOdds().byPrizeKey;
-  // 状元只有一份，于是它天然成为换算基准：别的池子按「几个状元那么常见」配货。
-  const unit = odds.CHAMPION;
-
-  const counts = {} as Record<PrizeKey, number>;
-  for (const key of PRIZE_KEYS) {
-    counts[key] = key === 'CHAMPION' ? 1 : Math.max(1, Math.round(odds[key] / unit));
-  }
-
+export function buildInventory(config?: RoomConfig): InventoryState {
+  const counts: Record<PrizeKey, number> = {
+    ONE_SHOW: config?.counts.ONE_SHOW ?? DEFAULT_PRIZE_COUNTS.ONE_SHOW,
+    TWO_LIFT: config?.counts.TWO_LIFT ?? DEFAULT_PRIZE_COUNTS.TWO_LIFT,
+    THREE_RED: config?.counts.THREE_RED ?? DEFAULT_PRIZE_COUNTS.THREE_RED,
+    FOUR_ADVANCE: config?.counts.FOUR_ADVANCE ?? DEFAULT_PRIZE_COUNTS.FOUR_ADVANCE,
+    DUITANG: config?.counts.DUITANG ?? DEFAULT_PRIZE_COUNTS.DUITANG,
+    CHAMPION: 1,
+  };
   return { counts, initial: { ...counts } };
 }
 

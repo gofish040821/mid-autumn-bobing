@@ -10,6 +10,7 @@
  */
 import { EMPTY_ROOM_TTL_MS, MAX_ROOMS, ROOM_ID } from '../config/gameConfig.js';
 import { generateRoomCode } from '@bobing/shared';
+import type { RoomConfig } from '@bobing/shared';
 import { systemClock } from '../game/Clock.js';
 import type { Clock } from '../game/Clock.js';
 import { GameEngine } from '../game/GameEngine.js';
@@ -115,8 +116,9 @@ export class RoomManager {
   /**
    * 开一张新桌。房间码由服务端生成并保证不与现存房间重复。
    * 达到 MAX_ROOMS 时拒绝，避免被脚本拉到进程撑爆。
+   * config 为可选的奖品配置（数量与积分），缺省回落到默认会饼。
    */
-  create(): CreateRoomResult {
+  create(config?: RoomConfig): CreateRoomResult {
     if (this.rooms.size >= MAX_ROOMS) {
       return { ok: false, message: '今晚的桌子已经开满了，请稍后再试' };
     }
@@ -125,7 +127,7 @@ export class RoomManager {
       const roomId = generateRoomCode(this.rng);
       if (this.rooms.has(roomId)) continue;
 
-      const engine = new GameEngine({ ...this.deps, roomId });
+      const engine = new GameEngine({ ...this.deps, roomId, config });
       if (this.makeEmitter) engine.setEmitter(this.makeEmitter(roomId));
       this.rooms.set(roomId, { engine, emptiedAt: null });
       return { ok: true, roomId, engine };
