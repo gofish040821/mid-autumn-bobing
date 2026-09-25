@@ -997,7 +997,7 @@ export class GameEngine {
   /**
    * 收席。
    *
-   * 状元可有可无 —— 纯随机之下约四分之一的牌局一个状元都博不出来，
+   * 状元可有可无 —— 纯随机之下约十分之一的牌局一个状元都博不出来，
    * 那时冠军位空着，状元奖 1 份原封留在库存里，本局照样结算。
    */
   private settle(endReason: GameEndReason): void {

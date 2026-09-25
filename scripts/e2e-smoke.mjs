@@ -6,12 +6,14 @@
  * 走完整的入席 → 开局 → 逐回合博饼 → 追状元 → 结算流程，
  * 并在每一步校验「所有人看到的是同一副骰子」。
  *
- * ⚠️ 本局现在打的是「博到饼尽」：五样普通饼全部博完才收席，骰子不做任何干预，
- * 所以一局约 111~177 掷（中位约 4.8 分钟纯动画时间），**跑满约 6 分钟**。
- * 这是唯一一个真的打完一局的冒烟脚本，别提前掐掉它。
+ * ⚠️ 本局现在打的是「博到饼尽」：五样普通饼全部博完才收席，骰子不做任何干预。
+ * 一桌 63 份（传统会饼 1:2:4:8:16:32），实测中位约 209 掷、p90 约 316 掷，
+ * 折合中位约 9 分钟纯动画时间，**跑完一局通常要 10~20 分钟，长尾能到 40 分钟**。
+ * 这是唯一一个真的打完一局的冒烟脚本，别提前掐掉它 —— 因为它这么慢，
+ * 日常改动用 test:multiroom / test:browser 就够了，这个留作压轴。
  *
  * 这里刻意**不给服务端加测试专用旋钮**（比如用环境变量缩短库存）：
- * 代价只是这个脚本慢几分钟，换来的是生产代码里不留任何测试钩子。
+ * 代价就是这个脚本慢十几分钟，换来的是生产代码里不留任何测试钩子。
  *
  * 用法：
  *   终端 A:  npm run dev:server
@@ -25,10 +27,28 @@ const PLAYER_COUNT = 4;
 /** 全局收席判定里的五个普通奖池 —— 与 server/src/config/prizes.ts 的 ENDING_PRIZE_KEYS 一致（纯 JS 引不到 TS）。 */
 const ENDING_KEYS = ['ONE_SHOW', 'TWO_LIFT', 'THREE_RED', 'FOUR_ADVANCE', 'DUITANG'];
 
-/** 三条各自独立的收工线：掷骰太多次、空转太多次、跑得太久，各报各的错。 */
-const MAX_ROLLS = 800;
+/**
+ * 三条各自独立的收工线：掷骰太多次、空转太多次、跑得太久，各报各的错。
+ *
+ * 这三个数是**看门狗，不是预期值** —— 它们该在服务端真卡住时才响。
+ * 63 份一桌实测：掷数中位 209 / p99 446 / 八万局里最长 840，
+ * 时间中位约 9 分钟 / p90 约 14 分钟 / p99 约 19 分钟 / 最长约 36 分钟。
+ * 所以两条线都压在最坏实测之上留足余量，正常局碰不到。
+ */
+const MAX_ROLLS = 1_500;
 const MAX_LOOP_TURNS = 4_000;
-const MAX_GAME_MS = 15 * 60_000;
+const MAX_GAME_MS = 60 * 60_000;
+
+/**
+ * 服务端快照里 `rollHistory` 的**上限** —— 与 server/src/config/gameConfig.ts 的
+ * MAX_ROLL_HISTORY 一致（纯 JS 引不到 TS）。
+ *
+ * 它是「最近 N 掷」的滚动窗口，超出就从**头部**丢弃最老的。这个上限是为了
+ * 压住广播体积：快照挂在每一次开奖广播上，一份掷骰记录约几百字节。
+ * 旧配货一局 111~177 掷，从来碰不到 300；现在 63 份一局中位就 209 掷、
+ * 一半以上的局会超过它，所以下面所有对账断言都必须按「有截断」来写。
+ */
+const MAX_ROLL_HISTORY = 300;
 
 let failures = 0;
 let checks = 0;
@@ -227,7 +247,8 @@ async function main() {
   check('回合带 turnId', typeof firstTurn?.turnId === 'string' && firstTurn.turnId.length > 0);
   check('回合有服务端权威截止时间', firstTurn?.deadlineAt > Date.now() - 5_000);
 
-  // 断言**形状**而不是写死份数：份数由判奖概率算出来，改判奖表它就该跟着变。
+  // 断言**形状**而不是写死份数：配货是 prizes.ts 里一张手填的表，
+  // 写死 32/16/… 会让每次调配货都得跟着改这个脚本（而它跑一次要十几分钟）。
   // `initial` 是开局库存的快照，这里存下来，局末再比对一次（见 [5]）。
   const openingCounts = host.snap.inventory.initial; // initial 本身就是一张 key→份数 的平表
   check(
@@ -241,7 +262,7 @@ async function main() {
   );
 
   /* ---------------- 4. 追一局到结束 ---------------- */
-  console.log('\n[4] 逐回合博饼直至结算（博到饼尽，约 6 分钟）');
+  console.log('\n[4] 逐回合博饼直至结算（博到饼尽，通常 10~20 分钟）');
 
   const rollRecordsByIndex = new Map(); // rollIndex -> Set(序列化后的骰子)
   let actionCounter = 0;
@@ -384,10 +405,14 @@ async function main() {
     '开局配货（initial）不因中途博饼而改动',
     JSON.stringify(inventory.initial) === JSON.stringify(openingCounts),
   );
-  check('掷骰次数与博饼记录条数一致', stats.totalRolls === host.snap.rollHistory.length);
+  check(
+    '掷骰次数与博饼记录条数一致（历史是「最近 300 掷」的滚动窗口）',
+    host.snap.rollHistory.length === Math.min(stats.totalRolls, MAX_ROLL_HISTORY),
+    `${host.snap.rollHistory.length} 条 / 共 ${stats.totalRolls} 掷`,
+  );
 
   /* --- 5a. 有状元 / 无状元是一对**互斥**的分支，各自全量断言 --- */
-  // 骰子完全随机之后约四分之一的牌局一个状元都博不出来 —— 那是正常结局，
+  // 骰子完全随机之后约十分之一的牌局一个状元都博不出来 —— 那是正常结局，
   // 不是「数据没同步」，所以这里不能只断言「必有状元」那一支。
   const marked = result.ranking.filter((e) => e.isFinalChampion);
   const championPrizeHolders = result.ranking.filter((e) =>
@@ -420,7 +445,10 @@ async function main() {
     const champ = marked[0];
     if (champ) {
       const expected = champion.baseScore + champion.bonus;
-      const championScoreFromRolls = host.snap.rollHistory
+      // 用脚本自己收到的**完整**开奖流来算，而不是快照里的 rollHistory ——
+      // 后者是「最近 300 掷」的滚动窗口，长局里状元早期的得分会被丢掉，
+      // 那样算出来会偏小（曾经在这里挂过：真实 177 分被算成 163）。
+      const championScoreFromRolls = host.seenRolls
         .filter((r) => r.playerId === champ.playerId)
         .reduce((a, r) => a + r.scoreGained, 0);
       check(
@@ -436,7 +464,7 @@ async function main() {
     check('无状元 ⟺ firstChampionRollIndex 为空', stats.firstChampionRollIndex === null);
     check(
       '本局确实一次状元档都没博出过',
-      host.snap.rollHistory.every((r) => !r.isChampionTier),
+      host.seenRolls.every((r) => !r.isChampionTier),
     );
   }
 
@@ -452,21 +480,35 @@ async function main() {
   check('没有任何客户端收到过倒退的 stateVersion', clients.every((c) => c.sameVersionViolations === 0));
   check('每次开奖都广播到了四个人', clients.every((c) => c.seenRolls.length === stats.totalRolls));
 
-  check('统计里总掷骰次数与历史一致', stats.totalRolls === host.snap.rollHistory.length);
+  check(
+    '统计里总掷骰次数与历史一致（同样按滚动窗口比）',
+    host.snap.rollHistory.length === Math.min(stats.totalRolls, MAX_ROLL_HISTORY),
+    `${host.snap.rollHistory.length} 条 / 共 ${stats.totalRolls} 掷`,
+  );
   check('代掷次数不可能超过总掷骰次数', stats.autoRolls <= stats.totalRolls);
   check('易主次数不可能超过总掷骰次数', stats.championReplacements <= stats.totalRolls);
 
-  // 双向对账：脚本收到过的每一次开奖，服务端都必须记在 rollHistory 里，反之亦然。
-  // 单向的 size 比较会被「恰好两个方向各错一次」蒙混过去。
-  const historyIndexes = new Set(host.snap.rollHistory.map((r) => r.rollIndex));
-  check(
-    '脚本观察到的每一次开奖，服务端都记进了 rollHistory',
-    [...rollRecordsByIndex.keys()].every((i) => historyIndexes.has(i)),
-    `${rollRecordsByIndex.size} 次观察到 / ${historyIndexes.size} 条记录`,
-  );
+  // 双向对账。注意 rollHistory 是滚动窗口，**不能**要求它包含全部开奖 ——
+  // 要断言的是：它恰好是本局**最后 len 掷**那段连续区间，一条不多、一条不少、
+  // 中间不缺口，而且被丢掉的正是最早的那些。这比旧版的「两边 size 相等」
+  // 更强：索引连续性一断就会炸。
+  const historyIndexes = host.snap.rollHistory.map((r) => r.rollIndex);
+  const dropped = stats.totalRolls - historyIndexes.length;
   check(
     '服务端记的每一次开奖，脚本都观察到了',
-    host.snap.rollHistory.every((r) => rollRecordsByIndex.has(r.rollIndex)),
+    historyIndexes.every((i) => rollRecordsByIndex.has(i)),
+  );
+  check(
+    'rollHistory 恰好是最后若干掷的连续区间（无缺口、无多余）',
+    historyIndexes.every((i, k) => i === dropped + k + 1),
+    `应覆盖 ${dropped + 1}~${stats.totalRolls}，实际 ${historyIndexes[0]}~${historyIndexes[historyIndexes.length - 1]}`,
+  );
+  check(
+    '滚动窗口丢掉的正是最早的那些开奖',
+    [...rollRecordsByIndex.keys()]
+      .filter((i) => !historyIndexes.includes(i))
+      .every((i) => i <= dropped),
+    `${rollRecordsByIndex.size} 次观察到 / ${historyIndexes.length} 条记录 / 丢弃 ${dropped} 条`,
   );
 
   console.log(

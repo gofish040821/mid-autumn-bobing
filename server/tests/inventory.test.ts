@@ -6,8 +6,7 @@
  *  - 库存 = 0 时骰型照常显示，但标为「已领完」，不发奖不加分；
  *  - Champion Tier 一律延后，只在结算时发给最终状元一个人。
  *
- * 配货规则（默认传统会饼，见 config/prizes.ts）：
- *   一秀 32 · 二举 16 · 三红 4 · 四进 8 · 对堂 2 · 状元 1。
+ * 配货规则（传统会饼 1:2:4:8:16:32，人工定死）见 config/prizes.ts。
  */
 import { describe, expect, it } from 'vitest';
 import { AWARD_MAP, PRIZE_KEYS } from '@bobing/shared';
@@ -31,7 +30,7 @@ const CHAMPION_IDS = [
 ] as const;
 
 describe('buildInventory · 一桌饼的配货', () => {
-  it('默认 63 份：一秀32 二举16 三红4 四进8 对堂2 状元1', () => {
+  it('一桌 63 份：一秀32 二举16 三红4 四进8 对堂2 状元1', () => {
     expectInventory(buildInventory(), {
       ONE_SHOW: 32,
       TWO_LIFT: 16,
@@ -40,6 +39,22 @@ describe('buildInventory · 一桌饼的配货', () => {
       DUITANG: 2,
       CHAMPION: 1,
     });
+  });
+
+  it('严格是 1 : 2 : 4 : 8 : 16 : 32，且总数 63', () => {
+    // 这一条盯的是**配比本身**（传统会饼的样子），不盯某一个数字。
+    // 有人把某一样调了，比例断言和总数断言会同时炸。
+    // 注意它**故意不是**「份数 ∝ 自然概率」——三红自然比四进常见，
+    // 份数却只有它一半，那正是这版配货的取舍（见 config/prizes.ts 头注释）。
+    const c = buildInventory().counts;
+    expect(c.CHAMPION).toBe(1);
+    expect(c.DUITANG).toBe(c.CHAMPION * 2);
+    expect(c.THREE_RED).toBe(c.CHAMPION * 4);
+    expect(c.FOUR_ADVANCE).toBe(c.CHAMPION * 8);
+    expect(c.TWO_LIFT).toBe(c.CHAMPION * 16);
+    expect(c.ONE_SHOW).toBe(c.CHAMPION * 32);
+    const total = PRIZE_KEYS.reduce((sum, k) => sum + c[k], 0);
+    expect(total).toBe(63);
   });
 
   it('份数与人数无关 —— 一张会饼是定量的，人多人少都是这一张', () => {
@@ -93,8 +108,8 @@ describe('emptyInventory · 空桌', () => {
   });
 
   it('不是 buildInventory() 的别名', () => {
-    // 这条是**承重**的：配货有 max(1, …) 下限，一旦 emptyInventory 改成复用
-    // buildInventory，重开一局后库存会留下一堆 1，台面清不干净
+    // 这条是**承重**的：一旦 emptyInventory 改成复用 buildInventory，
+    // 重开一局后库存会留下一整套 32/16/4/8/2/1，台面清不干净
     // （e2e-smoke 的「重开后库存归零」断言会挂）。
     expect(emptyInventory().counts).not.toEqual(buildInventory().counts);
     expect(emptyInventory().counts.ONE_SHOW).toBe(0);
