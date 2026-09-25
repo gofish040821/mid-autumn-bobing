@@ -136,12 +136,12 @@ describe('配置常量', () => {
     expect(MAX_PLAYERS).toBe(15);
   });
 
-  it('回合超时为 30 秒', () => {
-    expect(TURN_TIMEOUT_MS).toBe(30_000);
+  it('回合超时为 5 秒', () => {
+    expect(TURN_TIMEOUT_MS).toBe(5_000);
   });
 
   it('离线档必须是「更短的等待」，否则这个功能没有意义', () => {
-    expect(TURN_TIMEOUT_OFFLINE_MS).toBe(10_000);
+    expect(TURN_TIMEOUT_OFFLINE_MS).toBe(3_000);
     // 两边都写死数值还不够：真正要守住的是这个不等关系。
     // 哪天有人手滑把离线档调到比在线档还长，这一条会先炸。
     expect(TURN_TIMEOUT_OFFLINE_MS).toBeLessThan(TURN_TIMEOUT_MS);

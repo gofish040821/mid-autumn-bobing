@@ -27,7 +27,7 @@ import { selectCanRoll, selectIsMyTurn, useGameStore } from '../stores/gameStore
 import './GamePage.css';
 
 /** 服务端回合时限，与 server/src/config/gameConfig.ts 的 TURN_TIMEOUT_MS 保持一致。 */
-const TURN_TOTAL_MS = 30_000;
+const TURN_TOTAL_MS = 5_000;
 /** 未拿到服务端时长时的兜底骰子动画时长。 */
 const FALLBACK_DICE_MS = 1400;
 

@@ -2,7 +2,7 @@
  * GameEngine 集成测试 —— 题目 §41 里点名的全部边界情况。
  *
  * 全程使用 FakeClock + 可编排的确定性 Rng：
- * 时间与骰子都被完全掌控，所以「30 秒超时」「饼尽收席」这些
+ * 时间与骰子都被完全掌控，所以「5 秒超时」「饼尽收席」这些
  * 平时要靠运气的路径，在这里都是确定性的。
  *
  * 关于收席：默认牌是 63 份（中位约 213 掷），在这里跑一局要好几分钟。
@@ -11,6 +11,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { ErrorCode, InventoryState, RollRecord } from '@bobing/shared';
+import { transitionMsFor } from '@bobing/shared';
 
 import {
   ABANDON_GRACE_MS,
@@ -31,8 +32,16 @@ import type { EngineEvent, EngineResult } from '../src/game/GameEngine';
  * 测试脚手架
  * ------------------------------------------------------------------ */
 
-/** 任何一次开奖后的「演出时间」上限都远小于这个值。 */
-const TRANSITION_MS = 6_000;
+/**
+ * 推进「一次演出」的时长（供 advance() 与若干超时推进复用）。
+ *
+ * 必须同时满足两个边界，缺一不可：
+ *  - 大于最长演出 CHAMPION_FLOWER（约 4620ms），否则推进不到下一回合；
+ *  - 小于「最短演出 + 离线超时」= NONE(2370) + 离线(3000) = 5370ms，
+ *    否则 advance() 会误触发离线座位的超时代掷。
+ * 两边改动 shared/timing.ts 或 gameConfig.ts 时，记得回头核对这个窗口。
+ */
+const TRANSITION_MS = 4_800;
 
 /** 把 1~6 的面转成对应的 rng 取值（取每个区间的中点）。 */
 const faces = (...f: number[]): number[] => f.map((v) => (v - 0.5) / 6);
@@ -452,7 +461,7 @@ describe('回合与防重复', () => {
     expect(roll.scoreGained).toBe(15);
   });
 
-  it('30 秒无操作时由服务器自动代掷', () => {
+  it('5 秒无操作时由服务器自动代掷', () => {
     expect(h.engine.snapshot().stats.totalRolls).toBe(0);
     h.clock.advance(TURN_TIMEOUT_MS);
     const snap = h.engine.snapshot();
@@ -471,9 +480,9 @@ describe('回合与防重复', () => {
     expect(snap.lastRoll?.auto).toBe(true);
   });
 
-  it('离线玩家轮到时只等 10 秒，在线玩家仍是 30 秒', () => {
+  it('离线玩家轮到时只等 3 秒，在线玩家仍是 5 秒', () => {
     // 座位 1 先手。让座位 2 掉线，再照常打完座位 1 这一手 ——
-    // 轮到座位 2 时应该走「离线档」，而不是让全桌陪一个空座位干等 30 秒。
+    // 轮到座位 2 时应该走「离线档」，而不是让全桌陪一个空座位干等 5 秒。
     const offline = h.players[1]!;
     h.engine.disconnect(offline.id);
     playTurn(h, D_NONE);
@@ -490,7 +499,7 @@ describe('回合与防重复', () => {
     expect(onlineTurn.deadlineAt - onlineTurn.startedAt).toBe(TURN_TIMEOUT_MS);
   });
 
-  it('正好轮到他时掉线，剩下的等待立刻缩短到 10 秒', () => {
+  it('正好轮到他时掉线，剩下的等待立刻缩短到 3 秒', () => {
     const current = currentPlayerId(h);
     const before = h.engine.snapshot().currentTurn!;
     expect(before.deadlineAt - before.startedAt).toBe(TURN_TIMEOUT_MS);
@@ -502,7 +511,7 @@ describe('回合与防重复', () => {
     expect(after.deadlineAt - h.clock.now()).toBe(TURN_TIMEOUT_OFFLINE_MS);
   });
 
-  it('离线玩家的回合 10 秒就代掷，不用等满 30 秒', () => {
+  it('离线玩家的回合 3 秒就代掷，不用等满 5 秒', () => {
     const current = currentPlayerId(h);
     h.engine.disconnect(current);
 
@@ -519,7 +528,7 @@ describe('回合与防重复', () => {
   it('超时后回合继续推进，一圈一圈不会停', () => {
     for (let i = 0; i < 6; i += 1) {
       h.rng.push(...D_NONE); // 每一把超时代掷都掷出无奖，游戏会一直转下去
-      h.clock.advance(TURN_TIMEOUT_MS + TRANSITION_MS);
+      h.clock.advance(TURN_TIMEOUT_MS + transitionMsFor('NONE'));
     }
     const snap = h.engine.snapshot();
     expect(snap.stats.totalRolls).toBe(6);
@@ -539,7 +548,7 @@ describe('回合与防重复', () => {
     expect(h.engine.sync().stateVersion).toBeGreaterThan(0);
   });
 
-  it('回合截止时间正好是 30 秒之后', () => {
+  it('回合截止时间正好是 5 秒之后', () => {
     const turn = h.engine.snapshot().currentTurn!;
     expect(turn.deadlineAt - turn.startedAt).toBe(TURN_TIMEOUT_MS);
   });
