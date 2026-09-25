@@ -1,0 +1,15 @@
+.admin-test { width: min(840px, calc(100% - 24px)); margin: 24px auto; padding: clamp(16px, 4vw, 32px); position: relative; }
+.admin-test h1 { margin: 12px 0; }
+.admin-test header p { margin-bottom: 12px; color: var(--ink-muted); }
+.admin-test fieldset { min-width: 0; border: 1px solid var(--gold-line); border-radius: 12px; padding: 16px; margin-top: 20px; }
+.admin-test legend { padding: 0 8px; }
+.admin-test__faces { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.admin-test__faces label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.admin-test select { width: 100%; min-height: 44px; border: 1px solid var(--gold-line); border-radius: 8px; background: #fffdf4; color: var(--ink); text-align: center; font-size: 18px; }
+.admin-test__actions, .admin-test__presets { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.admin-test__actions { margin-top: 16px; }
+.admin-test__actions label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.admin-test__result { text-align: center; min-height: 126px; padding-top: 16px; }
+.admin-test__result strong { color: var(--cinnabar); font-size: 24px; }
+.admin-test__result p { margin: 4px 0; }
+.admin-test .btn { min-height: 44px; }

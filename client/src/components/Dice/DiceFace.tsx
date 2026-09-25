@@ -1,7 +1,7 @@
 /**
  * DiceFace —— 一颗中式骰子。
  *
- * 象牙白底 + 墨线勾边 + 朱砂点数，四角压一丝极淡的祥云弧，
+ * 象牙白底 + 墨线勾边 + 红黑点数，四角压一丝极淡的祥云弧，
  * 全部用内联 SVG 画出来，不依赖任何外部图片。
  *
  * 坐标系直接以 px 为单位（viewBox = 0 0 size size），
@@ -72,7 +72,7 @@ export default function DiceFace({ value, size = 52, className }: DiceFaceProps)
   const valid = Number.isInteger(value) && value >= 1 && value <= 6;
   const dots = valid ? FACE_DOTS[value] : NO_DOTS;
 
-  /** 一点、四点用实心朱砂大圆；其余点数用略深略小的朱砂点，整体仍是一套。 */
+  /** 一点、四点保留实心朱砂大圆；二、三、五、六点用略小的黑点。 */
   const isSolid = valid && (value === 1 || value === 4);
   const pipR = n(s * (isSolid ? 0.078 : 0.072));
 

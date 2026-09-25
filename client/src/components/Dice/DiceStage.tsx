@@ -10,6 +10,8 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import type { AwardId } from '@bobing/shared';
+import { orderDiceForAward } from '../../lib/diceOrder';
 import DiceFace from './DiceFace';
 import { diceChinese, diceDigits } from '../../lib/format';
 import { useGameStore } from '../../stores/gameStore';
@@ -18,6 +20,8 @@ import './Dice.css';
 export interface DiceStageProps {
   /** 落定后的六颗点数；null 表示本局还没博过 */
   dice: number[] | null;
+  /** 服务端判定的奖项，用于把中奖组合放到左侧。 */
+  awardId?: AwardId;
   /** 是否正在翻滚 */
   rolling: boolean;
   /** 本次动画时长（毫秒），来自 shared 的 diceMsFor() */
@@ -96,6 +100,7 @@ function normalize(dice: number[] | null): number[] {
 
 export default function DiceStage({
   dice,
+  awardId,
   rolling,
   durationMs,
   animKey,
@@ -146,7 +151,7 @@ export default function DiceStage({
   }, [spinning, dur, animKey]);
 
   const diceKey = dice ? dice.join('-') : 'none';
-  const settled = useMemo(() => normalize(dice), [diceKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const settled = useMemo(() => orderDiceForAward(normalize(dice), awardId), [diceKey, awardId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 稳定展示数组：翻滚时用随机面，落定后用真实点数
   const shown = useMemo<number[]>(

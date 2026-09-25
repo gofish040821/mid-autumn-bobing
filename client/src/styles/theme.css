@@ -610,3 +610,5 @@ button {
   animation-iteration-count: 1 !important;
   transition-duration: 0.06s !important;
 }
+
+.admin-test-entry { position: fixed; right: 16px; bottom: 16px; z-index: 90; background: #fffdf4; border: 1px solid var(--gold-line); border-radius: 24px; padding: 12px 18px; color: var(--cinnabar); box-shadow: 0 3px 12px #29251f22; }

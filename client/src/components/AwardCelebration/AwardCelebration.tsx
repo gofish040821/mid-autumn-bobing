@@ -21,6 +21,7 @@ import type { AwardPalette, RollRecord } from '@bobing/shared';
 import { useGameStore } from '../../stores/gameStore';
 import { randomNoneMessage } from '../../lib/format';
 import DiceFace from '../Dice/DiceFace';
+import { orderDiceForAward } from '../../lib/diceOrder';
 import Seal from '../Common/Seal';
 import { EffectLayer } from './effects';
 import './celebration.css';
@@ -200,7 +201,7 @@ export default function AwardCelebration({ roll, onDone }: AwardCelebrationProps
           </p>
 
           <div className="cel-dice">
-            {roll.dice.map((value, i) => (
+            {orderDiceForAward(roll.dice, roll.awardId).map((value, i) => (
               <DiceFace key={i} value={value} size={36} />
             ))}
           </div>

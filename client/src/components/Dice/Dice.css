@@ -27,9 +27,9 @@
   fill: var(--cinnabar);
 }
 
-/* 其余点数：略深一点，保持整套统一 */
+/* 二、三、五、六点：黑色 */
 .dice-face__pip--deep {
-  fill: #8e2e21;
+  fill: #1b1916;
 }
 
 /* 四角祥云，极细 */

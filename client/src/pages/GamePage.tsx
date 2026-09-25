@@ -194,6 +194,7 @@ export default function GamePage(): JSX.Element {
         <div className="game__dice game-block">
           <DiceStage
             dice={rollAnim?.dice ?? snapshot.lastRoll?.dice ?? null}
+            awardId={snapshot.lastRoll?.awardId}
             rolling={!!rollAnim?.rolling}
             durationMs={rollAnim?.durationMs ?? FALLBACK_DICE_MS}
             animKey={rollAnim?.key ?? 0}

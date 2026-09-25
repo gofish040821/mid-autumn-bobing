@@ -4,7 +4,7 @@
  * 页面完全由服务端 snapshot 的 phase 决定，因此刷新页面、断线重连
  * 都会自动回到正确的位置，不会把人踢回大厅。
  */
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useGameStore } from './stores/gameStore';
 
@@ -20,7 +20,19 @@ import LobbyPage from './pages/LobbyPage';
 import GamePage from './pages/GamePage';
 import ResultPage from './pages/ResultPage';
 
+const AdminTestPage = import.meta.env.DEV ? lazy(() => import('./pages/AdminTestPage')) : null;
+
 export default function App() {
+  if (AdminTestPage && new URLSearchParams(window.location.search).get('admin') === '1') {
+    return <Suspense fallback={<p>正在打开测试台…</p>}><AdminTestPage /></Suspense>;
+  }
+  return <>
+    <GameApp />
+    {import.meta.env.DEV && <a className="admin-test-entry" href="/?admin=1">管理员测试</a>}
+  </>;
+}
+
+function GameApp() {
   const initSocket = useGameStore((s) => s.initSocket);
   const resync = useGameStore((s) => s.resync);
   const hasJoined = useGameStore((s) => s.hasJoined);
