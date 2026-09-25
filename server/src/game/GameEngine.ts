@@ -4,7 +4,7 @@
  * 原则：
  *  - 骰子、奖项、积分、库存、状元全部由服务端决定，客户端只能说「我要博饼」；
  *  - 每个 turnId 只能成功开奖一次；
- *  - 30 秒超时由服务端定时器触发，不依赖客户端；
+ *  - 5 秒超时由服务端定时器触发，不依赖客户端；
  *  - 所有状态变化都通过 EngineEvent + 全量 Snapshot 广播，客户端状态永远可自愈。
  */
 import { AWARD_MAP, DEFAULT_ROOM_CONFIG, NICKNAME_MAX, PRIZE_NAMES, transitionMsFor } from '@bobing/shared';
@@ -511,7 +511,7 @@ export class GameEngine {
     }
 
     // 正好轮到他掉线 —— 把剩下的等待缩短到「离线档」，别让全桌陪着一个
-    // 空座位熬满 30 秒。deadlineAt 一起改，否则客户端倒计时会和服务端对不上。
+    // 空座位熬满 5 秒。deadlineAt 一起改，否则客户端倒计时会和服务端对不上。
     const turn = this.state.currentTurn;
     if (turn && turn.playerId === playerId && turn.status === 'WAITING') {
       turn.deadlineAt = this.clock.now() + TURN_TIMEOUT_OFFLINE_MS;

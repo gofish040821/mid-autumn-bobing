@@ -13,7 +13,7 @@ export interface TurnTimerProps {
   deadlineAt: number | null;
   /** store 的 serverTimeOffset */
   serverTimeOffset: number;
-  /** 回合总时长，默认 30000 */
+  /** 回合总时长，默认 5000 */
   totalMs?: number;
   /** 是否是我的回合（决定视觉强度） */
   mine?: boolean;
@@ -54,7 +54,7 @@ function arcColor(ratio: number): string {
 export default function TurnTimer({
   deadlineAt,
   serverTimeOffset,
-  totalMs = 30000,
+  totalMs = 5000,
   mine = false,
   className,
 }: TurnTimerProps): JSX.Element {
