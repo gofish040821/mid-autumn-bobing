@@ -7,6 +7,7 @@
  *  - Champion Tier 一律延后（deferred），等追状元结束只发一次给最终状元。
  */
 import type { AwardDefinition, InventoryState, PrizeKey } from '@bobing/shared';
+import { ENDING_PRIZE_KEYS } from '../config/prizes.js';
 
 export interface PrizeResolution {
   prizeKey: PrizeKey | null;
@@ -52,4 +53,14 @@ export function grantChampionPrize(inventory: InventoryState): boolean {
 
 export function hasStock(inventory: InventoryState, key: PrizeKey): boolean {
   return inventory.counts[key] > 0;
+}
+
+/**
+ * 饼是否博尽了 —— 五样普通饼全部为 0，本局就该收席。
+ *
+ * 只看 ENDING_PRIZE_KEYS，**不看状元**：Champion Tier 的库存要到 settle
+ * 才扣（consumePrize 返回 deferred），在这里看它等于这道闸门永远打不开。
+ */
+export function isInventoryExhausted(inventory: InventoryState): boolean {
+  return ENDING_PRIZE_KEYS.every((key) => inventory.counts[key] <= 0);
 }

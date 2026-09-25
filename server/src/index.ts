@@ -65,7 +65,13 @@ registerSocketHandlers(io, rooms, players, stats);
 
 /* ---------------- HTTP ---------------- */
 
-/** 全部房间的概览，运维用。不暴露给玩家界面。 */
+/**
+ * 全部房间的概览，运维用。不暴露给玩家界面。
+ *
+ * `total` 是**条目数**，和 `rooms` 数组长度相等：包括人已走光、还在空置
+ * 宽限期里等回收的桌。这里要的就是「我们手里还攥着几张桌」——MAX_ROOMS
+ * 拦的也是它。想看「有几桌真的有人」用 /api/health 的 `occupied`。
+ */
 app.get('/api/rooms', (_req, res) => {
   res.json({
     ok: true,
@@ -83,13 +89,19 @@ app.get('/api/rooms', (_req, res) => {
  * 不是历史总量（见 stats/SiteStats.ts 里的说明）。
  */
 app.get('/api/stats', (_req, res) => {
-  res.json({ ok: true, stats: stats.snapshot(players.size, rooms.size) });
+  // 和 socket 的 `stats:updated` 是同一个视图，取数口径必须一致，
+  // 否则页脚（走 socket）和这个接口会给出两个不一样的「桌数」。
+  res.json({ ok: true, stats: stats.snapshot(players.size, rooms.occupiedCount) });
 });
 
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
+    // 两个都是桌数，但读法不同，所以分开报，别让人对着一个名字猜：
+    //   rooms    —— 房间表里的条目数（含空置宽限期里的空桌），和 MAX_ROOMS 同口径
+    //   occupied —— 此刻桌上真坐着人的桌数，和 /api/stats、页脚同口径
     rooms: rooms.size,
+    occupied: rooms.occupiedCount,
     sockets: players.size,
     visitors: stats.visitorCount,
     maxRooms: MAX_ROOMS,

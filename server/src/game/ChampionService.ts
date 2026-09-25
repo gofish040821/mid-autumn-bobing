@@ -1,9 +1,9 @@
 /**
- * ChampionService —— 追状元队列、状元换人、月华值视图。
+ * ChampionService —— 追状元队列、状元换人。
+ *
+ * 这里只决定「谁在什么时候能坐上状元位」，不碰骰子。
  */
-import type { ChampionState, MoonBlessingView, PlayerState } from '@bobing/shared';
-import { MOON_BLESSING_START_ROUND } from '../config/gameConfig.js';
-import { computeBlessingRate, guaranteeRollNumber } from './DiceService.js';
+import type { ChampionState, PlayerState } from '@bobing/shared';
 
 export function emptyChampionState(): ChampionState {
   return {
@@ -38,66 +38,10 @@ export function buildChaseQueue(
 /**
  * 是否替换当前状元。
  * 只有**严格更高**的 Champion Rank 才能反超；同等级先出现者优先。
+ *
+ * `emptyChampionState().rank` 是 0，而所有 Champion Tier 的 rank 都 ≥ 1，
+ * 于是「本局第一位状元」天然被同一条谓词覆盖，不需要额外的首中分支。
  */
 export function shouldReplaceChampion(currentRank: number, challengerRank: number): boolean {
   return challengerRank > currentRank;
-}
-
-export interface MoonBlessingInput {
-  normalRollCount: number;
-  playerCount: number;
-  /** 是否已经产生首位状元（进入追状元后机制关闭） */
-  championFound: boolean;
-}
-
-/**
- * 月华值的只读展示视图。
- *
- * 第一轮完全不展示（IDLE），第二轮起月亮逐渐点亮，
- * 临近保底时提示「月华将满 · 状元将至」——但永远不会明说「下一把必出状元」。
- */
-export function buildMoonBlessingView(input: MoonBlessingInput): MoonBlessingView {
-  const { normalRollCount, playerCount, championFound } = input;
-  const guaranteeAtRoll = guaranteeRollNumber(playerCount);
-
-  if (championFound) {
-    return {
-      stage: 'DONE',
-      rate: 0,
-      normalRollCount,
-      guaranteeAtRoll,
-      progress: 1,
-      text: '状元已出 · 月华归隐',
-      nearGuarantee: false,
-    };
-  }
-
-  const rollNumber = normalRollCount + 1;
-  const windowStart = (MOON_BLESSING_START_ROUND - 1) * playerCount + 1;
-
-  if (playerCount <= 0 || rollNumber < windowStart) {
-    return {
-      stage: 'IDLE',
-      rate: 0,
-      normalRollCount,
-      guaranteeAtRoll,
-      progress: 0,
-      text: '月华未起',
-      nearGuarantee: false,
-    };
-  }
-
-  const span = Math.max(1, guaranteeAtRoll - windowStart);
-  const progress = Math.min(1, Math.max(0, (rollNumber - windowStart) / span));
-  const nearGuarantee = progress >= 0.75;
-
-  return {
-    stage: nearGuarantee ? 'FULL' : 'CHARGING',
-    rate: computeBlessingRate(normalRollCount, playerCount),
-    normalRollCount,
-    guaranteeAtRoll,
-    progress,
-    text: nearGuarantee ? '月华将满 · 状元将至' : '月华渐满',
-    nearGuarantee,
-  };
 }

@@ -10,15 +10,16 @@
 import { AWARD_MAP, NICKNAME_MAX, PRIZE_NAMES, transitionMsFor } from '@bobing/shared';
 import type {
   AwardId,
+  ChampionOutcome,
   ChampionState,
   ErrorCode,
+  GameEndReason,
   GameResult,
   GameSnapshot,
   GameStats,
   InventoryState,
   JoinResult,
   LogEntry,
-  MoonBlessingView,
   Phase,
   PlayerState,
   PrizeKey,
@@ -30,9 +31,9 @@ import { ABANDON_GRACE_MS, AUTO_START_COUNTDOWN_MS, CHAMPION_BONUS, LOBBY_GHOST_
 import { buildInventory, emptyInventory } from '../config/prizes.js';
 import { systemClock } from './Clock.js';
 import type { Clock } from './Clock.js';
-import { buildChaseQueue, buildMoonBlessingView, emptyChampionState, shouldReplaceChampion } from './ChampionService.js';
-import { rollChasePhase, rollNormalPhase, type Rng } from './DiceService.js';
-import { consumePrize, grantChampionPrize } from './PrizeService.js';
+import { buildChaseQueue, emptyChampionState, shouldReplaceChampion } from './ChampionService.js';
+import { rollRawDice, type Rng } from './DiceService.js';
+import { consumePrize, grantChampionPrize, isInventoryExhausted } from './PrizeService.js';
 import { addPrize, addScore, computeRanking } from './ScoreService.js';
 import { diceToChinese, evaluateDice } from './RuleEngine.js';
 import { formatLogId, formatPlayerId, formatRollId, formatTurnId, validateRollRequest } from './TurnService.js';
@@ -92,8 +93,6 @@ interface EngineState {
   finishedAt: number | null;
   result: GameResult | null;
   autoStartAt: number | null;
-  /** 普通阶段已经完成的掷骰次数（月华加持的唯一输入） */
-  normalRollCount: number;
   /** 本局是否已经发过状元奖（幂等） */
   championPrizeGranted: boolean;
 }
@@ -104,6 +103,14 @@ export interface EngineDeps {
   clock?: Clock;
   rng?: Rng;
   emit?: EngineEmitter;
+  /**
+   * 测试缝：本局开席时发什么牌。
+   *
+   * 不传就是正常的 buildInventory()（一桌 57 份饼）。单测可以注入一副小库存，
+   * 几步之内就博到饼尽 —— 收席这条路径靠冒烟脚本验证要跑满一整局（几分钟），
+   * 靠这里只要几十毫秒。
+   */
+  inventoryFor?: () => InventoryState;
 }
 
 function emptyStats(): GameStats {
@@ -112,7 +119,6 @@ function emptyStats(): GameStats {
     firstChampionRollIndex: null,
     championReplacements: 0,
     autoRolls: 0,
-    blessedRolls: 0,
     durationMs: null,
   };
 }
@@ -160,7 +166,6 @@ export class GameEngine {
       finishedAt: null,
       result: null,
       autoStartAt: null,
-      normalRollCount: 0,
       championPrizeGranted: false,
     };
   }
@@ -196,14 +201,6 @@ export class GameEngine {
   }
 
   snapshot(): GameSnapshot {
-    const playerCount = this.state.players.length;
-    const championFound = this.state.champion.playerId !== null;
-    const moonBlessing: MoonBlessingView = buildMoonBlessingView({
-      normalRollCount: this.state.normalRollCount,
-      playerCount,
-      championFound,
-    });
-
     return {
       roomId: this.state.roomId,
       phase: this.state.phase,
@@ -220,7 +217,6 @@ export class GameEngine {
       lastRoll: this.state.lastRoll ? { ...this.state.lastRoll } : null,
       rollHistory: this.state.rollHistory.map((r) => ({ ...r, dice: [...r.dice] })),
       gameLog: this.state.gameLog.map((l) => ({ ...l })),
-      moonBlessing,
       stats: { ...this.state.stats },
       hostId: this.state.players.find((p) => p.isHost)?.id ?? null,
       startedAt: this.state.startedAt,
@@ -638,7 +634,7 @@ export class GameEngine {
 
     this.resetRoundState();
     const count = this.state.players.length;
-    this.state.inventory = buildInventory(count);
+    this.state.inventory = this.deps.inventoryFor?.() ?? buildInventory();
     this.state.startedAt = this.clock.now();
     this.state.autoStartAt = null;
     this.clearAutoStartTimer();
@@ -669,19 +665,23 @@ export class GameEngine {
     this.state.startedAt = null;
     this.state.finishedAt = null;
     this.state.result = null;
-    this.state.normalRollCount = 0;
     this.state.championPrizeGranted = false;
     this.clearTurnTimer();
     this.clearAdvanceTimer();
   }
 
-  /** 回合计数器刻意不重置：turnId 在整个房间生命周期内保持唯一。 */
-  private startTurn(playerId: string, kind: 'NORMAL' | 'CHASE'): void {
+  /**
+   * 回合计数器刻意不重置：turnId 在整个房间生命周期内保持唯一。
+   *
+   * @returns 是否真的开出了一个回合。找不到人时返回 false，
+   *          由调用方决定怎么收场（正常路径是收席），绝不留一个空回合。
+   */
+  private startTurn(playerId: string, kind: 'NORMAL' | 'CHASE'): boolean {
     const player = this.findPlayer(playerId);
     if (!player) {
-      // 防御：找不到人就跳到下一个，绝不让游戏卡死
+      // 防御：找不到人就报回去，绝不让游戏卡在一个没人能博的回合上
       this.state.currentTurn = null;
-      return;
+      return false;
     }
     this.turnCounter += 1;
     const now = this.clock.now();
@@ -698,6 +698,7 @@ export class GameEngine {
       chaseIndex: kind === 'CHASE' ? this.state.champion.chaseDone + 1 : 0,
     };
     this.scheduleTurnTimeout();
+    return true;
   }
 
   /* ---------------- 博饼 ---------------- */
@@ -759,18 +760,9 @@ export class GameEngine {
     const playerCount = this.state.players.length;
     const isChase = this.state.phase === 'CHAMPION_CHASE';
 
-    let dice: number[];
-    let blessed = false;
-    let guaranteed = false;
-    if (isChase) {
-      dice = rollChasePhase(this.rng);
-    } else {
-      const outcome = rollNormalPhase(this.state.normalRollCount, playerCount, this.rng);
-      dice = outcome.dice;
-      blessed = outcome.blessed;
-      guaranteed = outcome.guaranteed;
-      this.state.normalRollCount += 1;
-    }
+    // 骰子完全随机：普通回合和追状元回合走的是同一句话，六颗均匀 1~6。
+    // 这里没有加持、没有保底、没有任何「为了凑出某个奖项」的构造。
+    const dice = rollRawDice(this.rng);
 
     const award = evaluateDice(dice);
     const resolution = consumePrize(award, this.state.inventory);
@@ -778,7 +770,6 @@ export class GameEngine {
     this.state.stats.totalRolls += 1;
     player.rollCount += 1;
     if (auto) this.state.stats.autoRolls += 1;
-    if (blessed) this.state.stats.blessedRolls += 1;
 
     let scoreGained = 0;
     if (resolution.granted && resolution.prizeKey) {
@@ -803,8 +794,6 @@ export class GameEngine {
       inventoryExhausted: resolution.exhausted,
       scoreGained,
       auto,
-      blessed,
-      guaranteed,
       kind: isChase ? 'CHASE' : 'NORMAL',
       replacedChampion: false,
       becameFirstChampion: false,
@@ -812,28 +801,28 @@ export class GameEngine {
     };
 
     // ---- 状元相关 ----
+    //
+    // 统一用 shouldReplaceChampion 判定，不另开「是不是首位」的分支：
+    // emptyChampionState().rank 是 0，所有 Champion Tier 的 rank 都 ≥ 1，
+    // 于是「本局第一位状元」天然被同一条谓词覆盖。
+    //
+    // 榜被刷新才换人、才开新一轮追状元；正在追状元时再易主只夺榜，
+    // 队列原样保留（一轮追状元只开一次，不嵌套）。
     let previousChampionNickname: string | null = null;
+    let chaseOpened = false;
     if (award.tier === 'CHAMPION') {
-      if (!isChase) {
-        roll.becameFirstChampion = true;
-        this.state.stats.firstChampionRollIndex = this.state.stats.totalRolls;
-        this.state.champion = {
-          playerId: player.id,
-          nickname: player.nickname,
-          seat: player.seat,
-          awardId: award.id,
-          dice: [...dice],
-          rank: award.championRank,
-          chaseQueue: buildChaseQueue(this.state.players, player.id),
-          chaseTotal: Math.max(0, playerCount - 1),
-          chaseDone: 0,
-          replacements: 0,
-          finalPlayerId: null,
-        };
-        this.state.phase = 'CHAMPION_CHASE';
-      } else if (shouldReplaceChampion(this.state.champion.rank, award.championRank)) {
-        previousChampionNickname = this.state.champion.nickname;
-        roll.replacedChampion = true;
+      this.state.stats.firstChampionRollIndex ??= this.state.stats.totalRolls;
+
+      if (shouldReplaceChampion(this.state.champion.rank, award.championRank)) {
+        const isFirst = this.state.champion.playerId === null;
+        // 追状元只在普通回合里开一轮；正在追状元时再易主只夺榜，不嵌套开新一轮
+        const opensChase = !isChase;
+        chaseOpened = opensChase;
+
+        previousChampionNickname = isFirst ? null : this.state.champion.nickname;
+        roll.becameFirstChampion = isFirst;
+        roll.replacedChampion = !isFirst;
+
         this.state.champion = {
           ...this.state.champion,
           playerId: player.id,
@@ -842,14 +831,23 @@ export class GameEngine {
           awardId: award.id,
           dice: [...dice],
           rank: award.championRank,
-          replacements: this.state.champion.replacements + 1,
+          // 开新的一轮才重新排队；途中易主保留原队列，剩下的挑战者照样博完
+          chaseQueue: opensChase
+            ? buildChaseQueue(this.state.players, player.id)
+            : this.state.champion.chaseQueue,
+          chaseTotal: opensChase ? Math.max(0, playerCount - 1) : this.state.champion.chaseTotal,
+          chaseDone: opensChase ? 0 : this.state.champion.chaseDone,
+          replacements: isFirst ? 0 : this.state.champion.replacements + 1,
         };
-        this.state.stats.championReplacements += 1;
+        if (opensChase) this.state.phase = 'CHAMPION_CHASE';
+        if (!isFirst) this.state.stats.championReplacements += 1;
       }
-      if (isChase) this.state.champion.chaseDone += 1;
-    } else if (isChase) {
-      this.state.champion.chaseDone += 1;
     }
+
+    // 追状元每博一次记一次进度 —— 必须放在**改状元对象之后**：
+    // 开新一轮时 chaseDone 刚被归零，先加后置会被覆盖掉。
+    // 途中易主不重置进度（挑战者该博几次还是几次），只有开新一轮才归零。
+    if (isChase) this.state.champion.chaseDone += 1;
 
     // ---- 历史与日志 ----
     this.state.lastRoll = roll;
@@ -865,7 +863,7 @@ export class GameEngine {
     events.push({ type: 'roll:result', roll });
     if (resolution.granted) events.push({ type: 'inventory:updated' });
     if (scoreGained > 0) events.push({ type: 'score:updated' });
-    if (roll.becameFirstChampion) events.push({ type: 'champion:started' });
+    if (chaseOpened) events.push({ type: 'champion:started' });
     if (roll.replacedChampion) {
       events.push({
         type: 'champion:updated',
@@ -900,8 +898,6 @@ export class GameEngine {
       } else {
         this.log(`${roll.nickname}未能超过当前状元，${award.name}惜败。`, 'normal');
       }
-      if (roll.blessed) this.log('月华加持，状元应声而落。', 'champion');
-      if (roll.guaranteed) this.log('月华已满，状元终现。', 'champion');
       return;
     }
     if (awardId === 'NONE') {
@@ -924,26 +920,36 @@ export class GameEngine {
     const phase = this.state.phase;
 
     if (phase === 'NORMAL_TURN') {
+      // 饼尽收席：五样普通饼全博空了，本局就到这里。
+      // 状元不在这道闸门里 —— 见 prizes.ts 的 ENDING_PRIZE_KEYS。
+      if (isInventoryExhausted(this.state.inventory)) {
+        this.settle('INVENTORY_EMPTY');
+        return;
+      }
       const currentSeat = this.state.currentTurn?.seat ?? 0;
       const nextId = this.nextSeatPlayerId(currentSeat);
-      if (!nextId) return;
-      this.startTurn(nextId, 'NORMAL');
+      if (!nextId || !this.startTurn(nextId, 'NORMAL')) {
+        // 找不到下家（名单被清空、座位全没了）。
+        // 从前这里是静默 return，那会让局面永远卡在 NORMAL_TURN：
+        // 没有回合、没有计时器、没有人能操作，也永远不会结束。
+        this.settle('ABORTED');
+        return;
+      }
       this.flush([{ type: 'turn:changed' }]);
       return;
     }
 
     if (phase === 'CHAMPION_CHASE') {
-      if (this.state.champion.chaseQueue.length === 0) {
-        this.settle();
-        return;
-      }
       const nextId = this.state.champion.chaseQueue.shift();
-      if (!nextId) {
-        this.settle();
+      if (nextId && this.startTurn(nextId, 'CHASE')) {
+        this.flush([{ type: 'turn:changed' }, { type: 'champion:queueUpdated' }]);
         return;
       }
-      this.startTurn(nextId, 'CHASE');
-      this.flush([{ type: 'turn:changed' }, { type: 'champion:queueUpdated' }]);
+      // 一轮追状元跑完 —— 回到普通回合接着博，直到饼尽才收席。
+      // 队列止于状元的前一位，所以从最后一个挑战者的下家接着轮，
+      // 下一位正好回到状元本人。
+      this.state.phase = 'NORMAL_TURN';
+      this.advanceTurn();
       return;
     }
 
@@ -959,7 +965,13 @@ export class GameEngine {
 
   /* ---------------- 结算 ---------------- */
 
-  private settle(): void {
+  /**
+   * 收席。
+   *
+   * 状元可有可无 —— 纯随机之下约四分之一的牌局一个状元都博不出来，
+   * 那时冠军位空着，状元奖 1 份原封留在库存里，本局照样结算。
+   */
+  private settle(endReason: GameEndReason): void {
     this.state.phase = 'SETTLING';
     this.clearTurnTimer();
     this.state.currentTurn = null;
@@ -987,14 +999,24 @@ export class GameEngine {
         this.state.champion.finalPlayerId = player.id;
       }
       this.state.championPrizeGranted = true;
-      this.log('追状元结束。', 'system');
+    }
+
+    if (endReason === 'INVENTORY_EMPTY') {
+      this.log(
+        championPlayerId
+          ? '五样饼博尽，本局收席。'
+          : '五样饼博尽，本局收席 —— 今夜的状元始终没有出现，状元饼原封留在桌上。',
+        'system',
+      );
+    } else {
+      this.log('牌局中止，本局收席。', 'warn');
     }
 
     const finishedAt = this.clock.now();
     this.state.finishedAt = finishedAt;
     this.state.stats.durationMs =
       this.state.startedAt !== null ? finishedAt - this.state.startedAt : null;
-    this.state.result = this.buildResult(championPlayerId, baseScore, bonus, finishedAt);
+    this.state.result = this.buildResult(championPlayerId, baseScore, bonus, finishedAt, endReason);
     this.state.phase = 'FINISHED';
 
     events.push({ type: 'champion:updated', replaced: false, previousNickname: null });
@@ -1007,26 +1029,40 @@ export class GameEngine {
     this.flush(events);
   }
 
+  /**
+   * 结算数据。**永远返回一份结果**，没有状元时 `champion` 为 null。
+   *
+   * 从前这里有两个 return null 的早退，于是「本局无状元」和「玩家被清掉」
+   * 都表现成 result === null，结算页只能一直显示「结算数据尚未同步」。
+   */
   private buildResult(
     championPlayerId: string | null,
     baseScore: number,
     bonus: number,
     finishedAt: number,
-  ): GameResult | null {
-    if (!championPlayerId) return null;
-    const player = this.findPlayer(championPlayerId);
-    if (!player) return null;
-    const awardId = this.state.champion.awardId ?? 'FOUR_FOUR';
+    endReason: GameEndReason,
+  ): GameResult {
+    const player = championPlayerId ? this.findPlayer(championPlayerId) : undefined;
+    const awardId = this.state.champion.awardId;
+
+    const champion: ChampionOutcome | null =
+      player && awardId
+        ? {
+            playerId: player.id,
+            nickname: player.nickname,
+            seat: player.seat,
+            awardId,
+            dice: [...(this.state.champion.dice ?? [])],
+            baseScore,
+            bonus,
+          }
+        : null;
+
     return {
-      finalChampionId: player.id,
-      finalChampionNickname: player.nickname,
-      finalChampionSeat: player.seat,
-      championAwardId: awardId,
-      championDice: [...(this.state.champion.dice ?? [])],
-      championBaseScore: baseScore,
-      championBonus: bonus,
-      ranking: computeRanking(this.state.players, player.id),
+      champion,
+      ranking: computeRanking(this.state.players, champion?.playerId ?? null),
       finishedAt,
+      endReason,
     };
   }
 
@@ -1089,14 +1125,12 @@ export class GameEngine {
 
   /** 仅供测试：直接读取内部状态。 */
   inspect(): {
-    normalRollCount: number;
     championPrizeGranted: boolean;
     processedActions: number;
     phase: Phase;
     stateVersion: number;
   } {
     return {
-      normalRollCount: this.state.normalRollCount,
       championPrizeGranted: this.state.championPrizeGranted,
       processedActions: this.processedActions.size,
       phase: this.state.phase,

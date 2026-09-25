@@ -149,10 +149,6 @@ export interface RollRecord {
   scoreGained: number;
   /** 是否为服务器超时自动代掷 */
   auto: boolean;
-  /** 是否由「月华加持」加速产生 */
-  blessed: boolean;
-  /** 是否由「保底」强制产生 */
-  guaranteed: boolean;
   /** NORMAL 或 CHASE */
   kind: TurnKind;
   /** 是否在追状元阶段反超成为新状元 */
@@ -169,29 +165,17 @@ export interface LogEntry {
   tone: 'normal' | 'win' | 'champion' | 'system' | 'warn';
 }
 
-/** 月华值（加速出状元机制）的只读视图，供 UI 画月相。 */
-export interface MoonBlessingView {
-  /** IDLE = 第一轮不展示；CHARGING = 月华渐满；FULL = 月华将满；DONE = 已出状元，机制关闭 */
-  stage: 'IDLE' | 'CHARGING' | 'FULL' | 'DONE';
-  /** 当前生效的额外状元概率（0~1） */
-  rate: number;
-  /** 已完成的普通阶段掷骰次数 */
-  normalRollCount: number;
-  /** 保底触发的那一次掷骰序号（保底轮次 × N） */
-  guaranteeAtRoll: number;
-  /** 0~1，用于点亮月亮 */
-  progress: number;
-  text: string;
-  nearGuarantee: boolean;
-}
-
 export interface GameStats {
   totalRolls: number;
-  /** 首个状元出现在第几次博饼 */
+  /**
+   * 首个状元出现在第几次博饼。
+   *
+   * 纯随机之下约四分之一的牌局一个状元都博不出来，此时它是 null ——
+   * 这是正常的结局，不是异常，界面照实显示「—」即可。
+   */
   firstChampionRollIndex: number | null;
   championReplacements: number;
   autoRolls: number;
-  blessedRolls: number;
   durationMs: number | null;
 }
 
@@ -215,16 +199,38 @@ export interface RankingEntry {
   isFinalChampion: boolean;
 }
 
+/**
+ * 本局的状元。
+ *
+ * 整块可空 —— 骰子完全随机之后，约四分之一的牌局一个状元都博不出来，
+ * 那时状元饼原封留在桌上，本局照样收席。做成一个可空对象而不是六七个
+ * 平铺的 `| null` 字段，是因为类型收窄：`if (result.champion)` 一次就把
+ * 下面每个字段都收窄了，平铺的话每加一个字段、每个调用方都要再判一次。
+ */
+export interface ChampionOutcome {
+  playerId: string;
+  nickname: string;
+  seat: number;
+  awardId: AwardId;
+  dice: number[];
+  /** 骰型对应的基础分 */
+  baseScore: number;
+  /** 最终状元奖励（CHAMPION_BONUS） */
+  bonus: number;
+}
+
+/**
+ * 本局为什么收席。
+ *   INVENTORY_EMPTY —— 五样普通饼博完了，正常终局
+ *   ABORTED         —— 轮座时找不到下家（名单被清空等），兜底收席
+ */
+export type GameEndReason = 'INVENTORY_EMPTY' | 'ABORTED';
+
 export interface GameResult {
-  finalChampionId: string;
-  finalChampionNickname: string;
-  finalChampionSeat: number;
-  championAwardId: AwardId;
-  championDice: number[];
-  championBaseScore: number;
-  championBonus: number;
+  champion: ChampionOutcome | null;
   ranking: RankingEntry[];
   finishedAt: number;
+  endReason: GameEndReason;
 }
 
 /** 服务端广播给所有客户端的完整状态快照。客户端不得用旧 stateVersion 覆盖新状态。 */
@@ -239,7 +245,6 @@ export interface GameSnapshot {
   lastRoll: RollRecord | null;
   rollHistory: RollRecord[];
   gameLog: LogEntry[];
-  moonBlessing: MoonBlessingView;
   stats: GameStats;
   hostId: string | null;
   startedAt: number | null;
@@ -304,7 +309,13 @@ export interface SiteStats {
   visitors: number;
   /** 此刻坐在桌上的人（已入席且连接还在） */
   online: number;
-  /** 此刻开着的桌数 */
+  /**
+   * 此刻**有人**的桌数（桌上至少坐着一位玩家）。
+   *
+   * 不是「房间表里的条目数」—— 人走光但还在空置宽限期里的桌不算，房主刚
+   * 建好、朋友还没点进链接的空桌也不算。界面上的文案是「N 桌开着」，
+   * 这个数要对得上那句话。
+   */
   rooms: number;
 }
 

@@ -55,8 +55,37 @@ export class RoomManager {
     this.deps = { clock: this.clock, rng: this.rng };
   }
 
+  /**
+   * 房间表里的**条目数** —— 包括人已经走光、还在 EMPTY_ROOM_TTL_MS 宽限期里
+   * 等着被 sweep() 回收的空桌。
+   *
+   * 这个数是给容量用的（MAX_ROOMS 就是拿它比的），不要拿它去当「现在有几桌
+   * 在玩」显示给玩家看：三五个朋友散场之后它还要虚挂两分钟。要显示请用
+   * `occupiedCount`。
+   */
   get size(): number {
     return this.rooms.size;
+  }
+
+  /**
+   * **有人的桌数** —— 桌上还坐着至少一位玩家。
+   *
+   * 和 `size` 的区别是「桌开着」这句话的两种读法：`size` 数的是我们手里还
+   * 攥着几张桌，`occupiedCount` 数的是此刻真有人坐在那儿。页脚那句
+   * 「N 桌开着」要的是后者。
+   *
+   * 直接问引擎的 `playerCount`，不看 `emptiedAt` —— 后者只在 sweep() 扫到
+   * 时才会更新，两次扫描之间是过期的；而这个数随时问随时准。
+   *
+   * 房主刚建好、朋友还没点进链接的桌算 0（确实没人）；一局打完了但大家还
+   * 坐着聊天的桌算 1（确实有人）。两种都符合直觉。
+   */
+  get occupiedCount(): number {
+    let occupied = 0;
+    for (const entry of this.rooms.values()) {
+      if (entry.engine.playerCount > 0) occupied += 1;
+    }
+    return occupied;
   }
 
   has(roomId: string): boolean {

@@ -130,6 +130,22 @@
   letter-spacing: 0.16em;
 }
 
+/* 无状元：题头从金色降成墨色，但绝不灰掉 —— 这是正经结局，不是缺失 */
+.result-champ--none .result-champ__eyebrow {
+  color: var(--ink-soft);
+}
+
+.result-champ--none .result-champ__name {
+  font-size: clamp(24px, 7vw, 38px);
+}
+
+.result-champ__none-text {
+  margin: 12px auto 0;
+  max-width: 30em;
+  font-size: 14px;
+  line-height: 1.9;
+}
+
 /* ---------- 排行榜 ---------- */
 
 .result-rank__hint {

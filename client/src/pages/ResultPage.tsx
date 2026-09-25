@@ -12,7 +12,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { AWARD_MAP } from '@bobing/shared';
-import type { AwardId, GameStats, RankingEntry } from '@bobing/shared';
+import type { ChampionOutcome, GameStats, RankingEntry } from '@bobing/shared';
 
 import DiceFace from '../components/Dice/DiceFace';
 import Seal from '../components/Common/Seal';
@@ -29,15 +29,11 @@ const EASE_SOFT: [number, number, number, number] = [0.22, 0.61, 0.36, 1];
  * ================================================================== */
 
 interface ChampionCardProps {
-  nickname: string;
-  seat: number;
-  awardId: AwardId;
-  dice: number[];
-  baseScore: number;
-  bonus: number;
+  champion: ChampionOutcome;
 }
 
-function ChampionCard({ nickname, seat, awardId, dice, baseScore, bonus }: ChampionCardProps) {
+function ChampionCard({ champion }: ChampionCardProps) {
+  const { nickname, seat, awardId, dice, baseScore, bonus } = champion;
   const color = AWARD_MAP[awardId]?.palette.primary ?? 'var(--ink)';
   const total = baseScore + bonus;
 
@@ -86,6 +82,38 @@ function ChampionCard({ nickname, seat, awardId, dice, baseScore, bonus }: Champ
       </dl>
 
       <p className="result-champ__seat t-muted t-nums">{seat} 号席</p>
+    </motion.section>
+  );
+}
+
+/**
+ * 无状元卡片 —— 骰子完全随机之后约四分之一的牌局一个状元都博不出来。
+ *
+ * 这是正常的收席方式（五样普通饼博完了），不是数据缺失，所以不能退化成
+ * 空状态或错误提示：状元那一份饼原封留在桌上，照实说明即可。
+ */
+function NoChampionCard() {
+  return (
+    <motion.section
+      className="scroll scroll--plain result-champ result-champ--none"
+      aria-label="本局无状元"
+      initial={{ opacity: 0, y: 18, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.5, ease: EASE_SOFT }}
+    >
+      <p className="result-champ__eyebrow t-fang">本局终章 · 无状元</p>
+
+      <div className="result-champ__seal">
+        <Seal text="饼尽" size="lg" />
+      </div>
+
+      <h2 className="result-champ__name t-kai">饼尽月落</h2>
+
+      <p className="result-champ__none-text t-muted">
+        今夜的状元始终没有出现。状元奖 1 份仍封存于桌上，本局按「饼尽」收席。
+      </p>
+
+      <p className="result-champ__seat t-muted">积分榜第一并非正式博饼状元，请看下方金榜。</p>
     </motion.section>
   );
 }
@@ -185,7 +213,6 @@ function StatsCard({ stats }: StatsCardProps) {
         />
         <StatCell label="状元易主" value={`${stats.championReplacements} 次`} />
         <StatCell label="系统代掷" value={`${stats.autoRolls} 次`} />
-        <StatCell label="月华加持" value={`${stats.blessedRolls} 次`} />
       </dl>
     </section>
   );
@@ -270,14 +297,11 @@ export default function ResultPage(): JSX.Element {
     <div className="page result">
       {head}
 
-      <ChampionCard
-        nickname={result.finalChampionNickname}
-        seat={result.finalChampionSeat}
-        awardId={result.championAwardId}
-        dice={result.championDice}
-        baseScore={result.championBaseScore}
-        bonus={result.championBonus}
-      />
+      {result.champion ? (
+        <ChampionCard champion={result.champion} />
+      ) : (
+        <NoChampionCard />
+      )}
 
       <section className="scroll scroll--plain result-rank" aria-label="单局积分排行榜">
         <h2 className="section-label">单局积分排行榜</h2>

@@ -2,13 +2,13 @@
  * RuleModal —— 「博饼规则」卷轴弹窗。
  *
  * 展开方式：上下两根木轴 + 中间宣纸卷面，整卷从中间向上下展开（scaleY 0 → 1）。
- * 内容全部来自 @bobing/shared 的 AWARDS，规则文案与库存公式跟服务端同一份真相，
+ * 内容全部来自 @bobing/shared 的 AWARDS，奖品份数直接读服务端下发的开局库存，
  * 不会出现「说明和实际算法不一致」的情况。
  */
 import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AWARDS, PRIZE_KEYS, PRIZE_NAMES } from '@bobing/shared';
-import type { AwardDefinition, PrizeKey } from '@bobing/shared';
+import type { AwardDefinition, InventoryState, PrizeKey } from '@bobing/shared';
 import { useGameStore } from '../../stores/gameStore';
 import './RuleModal.css';
 
@@ -32,15 +32,18 @@ const CN_ORDINALS: readonly string[] = [
 /** 对堂的「一点到六点各一颗」示意。 */
 const DICE_FACES: readonly string[] = ['一', '二', '三', '四', '五', '六'];
 
-/** 奖品数量公式：与 server/src/config/prizes.ts 保持一致。 */
-const PRIZE_FORMULAS: Record<PrizeKey, string> = {
-  ONE_SHOW: '4 × 人数',
-  TWO_LIFT: '2 × 人数',
-  THREE_RED: '人数',
-  FOUR_ADVANCE: '⌈人数 ÷ 2⌉',
-  DUITANG: 'max(1, ⌈人数 ÷ 5⌉)',
-  CHAMPION: '1',
-};
+/**
+ * 一桌饼的份数。
+ *
+ * 第一版这里是「4 × 人数」之类的公式，改成「份数 ∝ 判奖自然概率」之后
+ * 已经没有一行写得下的公式了，于是改为**直接读服务端下发的开局库存**
+ * （`snapshot.inventory.initial`）—— 说明和算法不可能再对不上。
+ * 开局前库存全是 0，此时返回 null，界面只显示奖品名、不显示份数。
+ */
+function prizeCount(initial: InventoryState | null, key: PrizeKey): string | null {
+  const n = initial?.counts[key] ?? 0;
+  return n > 0 ? `${n} 份` : null;
+}
 
 /** 入门三步。 */
 const STEPS: readonly string[] = [
@@ -106,7 +109,7 @@ export default function RuleModal(): JSX.Element {
   const ruleOpen = useGameStore((s) => s.ruleOpen);
   const closeRules = useGameStore((s) => s.closeRules);
   const reducedMotion = useGameStore((s) => s.reducedMotion);
-  const playerCount = useGameStore((s) => s.snapshot?.players.length ?? null);
+  const inventory = useGameStore((s) => s.snapshot?.inventory ?? null);
 
   /* 打开时锁住 body 滚动，关闭 / 卸载时还原 */
   useEffect(() => {
@@ -235,36 +238,40 @@ export default function RuleModal(): JSX.Element {
                     <section className="rulemodal__section">
                       <h3 className="section-label">奖品数量</h3>
                       <ul className="rulemodal__prizes">
-                        {PRIZE_KEYS.map((key) => (
-                          <li
-                            className={
-                              'rulemodal__prize' +
-                              (key === 'CHAMPION' ? ' rulemodal__prize--champion' : '')
-                            }
-                            key={key}
-                          >
-                            <span className="rulemodal__prize-name">{PRIZE_NAMES[key]}</span>
-                            <span className="rulemodal__prize-count t-nums">
-                              = {PRIZE_FORMULAS[key]}
-                            </span>
-                          </li>
-                        ))}
+                        {PRIZE_KEYS.map((key) => {
+                          const count = prizeCount(inventory, key);
+                          return (
+                            <li
+                              className={
+                                'rulemodal__prize' +
+                                (key === 'CHAMPION' ? ' rulemodal__prize--champion' : '')
+                              }
+                              key={key}
+                            >
+                              <span className="rulemodal__prize-name">{PRIZE_NAMES[key]}</span>
+                              {count !== null && (
+                                <span className="rulemodal__prize-count t-nums">{count}</span>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                       <p className="rulemodal__note">
-                        库存按人数 N 计算{playerCount !== null ? `（当前 N = ${playerCount} 人）` : ''}
-                        。库存领完不补；同一等级再次博出时只显示骰型，不再发奖、不加分。
+                        一桌饼是定量的，人多人少都是这一张，份数与会饼人数无关。每样份数按判奖概率配货
+                        （中得越多、配得越多），状元只有一份。库存领完不补；同一等级再次博出时只显示骰型，
+                        不再发奖、不加分。
                       </p>
                     </section>
 
                     <section className="rulemodal__block">
-                      <h3 className="rulemodal__block-title">月华加持</h3>
+                      <h3 className="rulemodal__block-title">博到饼尽</h3>
                       <p className="rulemodal__text rulemodal__text--tight">
-                        为控制单局时长，本游戏设有「月华加持」机制：首位状元出现之前，月华会随着桌上一次次掷骰慢慢蓄满，
-                        出状元的机会也随之渐近，因此不必担心久等不来。第一轮完全按正常六面骰随机，月华不起作用；
-                        第二轮之后月华才开始加持，且追状元阶段不再干预。
+                        本局不设固定轮数，也没有任何保底：一秀、二举、三红、四进、对堂这五样饼全部博完，本局收席。
+                        六颗骰子每掷一次都是均匀的 1~6，不论一秀还是状元都只看运气。
                       </p>
                       <p className="rulemodal__note">
-                        月华只在场上以月相示意，不显示具体数字——愿者自至，不必掐算。
+                        状元是彩头、不是排期：博出状元照常开一轮追状元，追完接着博，直到饼尽为止。
+                        因此一局快慢全看手气，也有的局到最后都没有状元。
                       </p>
                     </section>
 

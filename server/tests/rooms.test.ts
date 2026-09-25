@@ -479,6 +479,75 @@ describe('RoomManager · 空房间回收', () => {
 });
 
 /* ------------------------------------------------------------------ *
+ * 桌数口径：size（房间表条目数） vs occupiedCount（真有人的桌）
+ * ------------------------------------------------------------------ */
+
+describe('RoomManager · 桌数口径', () => {
+  it('房主建好桌、朋友还没点进链接：算一条记录，不算一桌有人', () => {
+    const b = createBench();
+    const created = b.rooms.create();
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    expect(b.rooms.size).toBe(1);
+    expect(b.rooms.occupiedCount).toBe(0);
+  });
+
+  it('桌上坐了人：两个数都是 1', () => {
+    const b = createBench();
+    const created = b.rooms.create();
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    joinRoom(created.engine, 'guest_1', '客一', 'sock_1');
+    expect(b.rooms.size).toBe(1);
+    expect(b.rooms.occupiedCount).toBe(1);
+  });
+
+  it('人散场后：条目还挂在表里等回收，桌数当场就掉下来', () => {
+    const b = createBench();
+    const created = b.rooms.create();
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const p1 = joinRoom(created.engine, 'guest_1', '客一', 'sock_1');
+    const p2 = joinRoom(created.engine, 'guest_2', '客二', 'sock_2');
+    expect(b.rooms.occupiedCount).toBe(1);
+
+    created.engine.leave(p1.playerId);
+    created.engine.leave(p2.playerId);
+    expect(created.engine.playerCount).toBe(0);
+
+    // 空置宽限期内：记录还在，人没了 —— 页脚那个数字曾经在这里虚挂两分钟。
+    // sweep() 只负责记下「它空了」，不负责改这两句话的答案。
+    expect(b.rooms.sweep()).toBe(0);
+    b.clock.advance(EMPTY_ROOM_TTL_MS - 1);
+    expect(b.rooms.sweep()).toBe(0);
+    expect(b.rooms.size).toBe(1); // 条目还攥在手里
+    expect(b.rooms.occupiedCount).toBe(0); // 但已经没人坐在那儿了
+  });
+
+  it('牌局进行中全员掉线：仍然算有人 —— 那张桌上有一局还没结束', () => {
+    const b = createBench();
+    const created = b.rooms.create();
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const p1 = joinRoom(created.engine, 'guest_1', '客一', 'sock_1');
+    const p2 = joinRoom(created.engine, 'guest_2', '客二', 'sock_2');
+    expect(created.engine.start(p1.playerId).ok).toBe(true);
+
+    created.engine.disconnect(p1.playerId);
+    created.engine.disconnect(p2.playerId);
+    expect(created.engine.snapshot().players.every((p) => !p.online)).toBe(true);
+
+    // 掉线不等于离席：引擎还在按 ABANDON_GRACE_MS 等他们回来，牌局没散
+    expect(b.rooms.occupiedCount).toBe(1);
+    created.engine.dispose();
+  });
+});
+
+/* ------------------------------------------------------------------ *
  * 引擎的房间归属
  * ------------------------------------------------------------------ */
 

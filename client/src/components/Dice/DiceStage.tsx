@@ -234,7 +234,7 @@ export default function DiceStage({
         </div>
       </div>
 
-      {waiting && <p className="dice-stage__hint">静候月华</p>}
+      {waiting && <p className="dice-stage__hint">静候骰响</p>}
 
       <span className="sr-only" aria-live="polite">
         {announce}

@@ -44,9 +44,14 @@ function engineOf(rooms: RoomManager, players: PlayerManager, socket: Sock): Gam
   return rooms.get(binding.roomId);
 }
 
-/** 组装当前统计。在线人数取「已入席且连接还在」的人数，不是裸连接数。 */
+/**
+ * 组装当前统计。在线人数取「已入席且连接还在」的人数，不是裸连接数。
+ *
+ * 桌数取 `occupiedCount` 而不是 `rooms.size` —— 页脚写的是「N 桌开着」，
+ * 那个 N 应当是「此刻有人坐在那儿的桌」，不是「房间里还留着几条记录」。
+ */
 function statsNow(rooms: RoomManager, players: PlayerManager, stats: SiteStatsService): SiteStats {
-  return stats.snapshot(players.size, rooms.size);
+  return stats.snapshot(players.size, rooms.occupiedCount);
 }
 
 export function registerSocketHandlers(

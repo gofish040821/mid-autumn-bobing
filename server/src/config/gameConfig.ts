@@ -1,8 +1,11 @@
 /**
  * 全部可调参数集中在这里。
  *
- * 想改玩法（回合时长、月华保底、演出节奏、人数上下限），
+ * 想改玩法（回合时长、演出节奏、人数上下限），
  * 只改这个文件就够了，不需要动任何逻辑代码。
+ *
+ * 注意这里**没有**任何与骰子点数有关的参数——六颗骰子永远均匀随机，
+ * 想让某个奖项更容易出现，只能改判奖表（shared/src/awards.ts）。
  */
 
 /* ---------------- 房间与人数 ---------------- */
@@ -88,67 +91,22 @@ export const TURN_TIMEOUT_OFFLINE_MS = 10_000;
  */
 export { ROLL_TIMING, TRANSITION_BUFFER_MS, transitionMsFor } from '@bobing/shared';
 
-/* ---------------- 月华加持 / 状元保底 ---------------- */
+/* ---------------- 状元 ---------------- */
 
 /**
- * 从第几轮开始开启月华加持（第一轮完全不干预）。
+ * 最终状元额外奖励。
  *
- * 第一轮是「纯天命」——所有人拼的都是骰子本身那约 0.9% 的状元概率，
- * 谁在这时候博出来，那就是真的鸿运当头，跟机制无关。
- */
-export const MOON_BLESSING_START_ROUND = 2;
-
-/**
- * 第二轮第一次的额外状元概率。
+ * 状元是**彩头**，不是本局的排期事件：这局什么时候收席由饼定，不由状元定。
  *
- * 调成 0.5%，是刻意让状元「罕见」：骰子本身出状元档的概率只有
- * 约 0.9%（由传统判奖表定死，改不了），月华加持是唯一能调的那部分。
- * 从 3% 降到 0.5% 之后，绝大多数牌局的状元都会落到最后的保底时刻，
- * 而不是被加持提前催出来——状元因此重新变成一件值得站起来喊的事。
- */
-export const MOON_BLESSING_INITIAL_RATE = 0.005;
-
-/** 之后每掷一次仍未出状元，额外提升的概率。 */
-export const MOON_BLESSING_RATE_INCREMENT = 0.002;
-
-/**
- * 额外概率上限 3%。
+ * 曾经这里还有过「月华加持」与「状元保底」两套参数，用来保证每局都
+ * 博得出一个状元——它们是靠**直接构造一副状元骰子**实现的，也就是在
+ * 随机数之外人为改点数。现在骰子完全随机（六颗均匀 1~6，见 DiceService），
+ * 于是：每局自然出状元档的概率是 561/46656 ≈ 1.2024%，**约四分之一的牌局
+ * 一个状元都没有**，状元饼原封留在桌上，这是正常结局。
  *
- * 有意压得比「自然概率」低得多的量级：满月时的一掷也只是稍微顺手一点，
- * 不会变成「月亮圆了状元就来了」。
+ * 想让状元更常见，唯一正当的做法是改判奖表本身（shared/src/awards.ts），
+ * 不要去碰骰子。
  */
-export const MOON_BLESSING_MAX_RATE = 0.03;
-
-/**
- * 最多五个完整轮次内必须出现首个状元。
- *
- * 注意这一条意味着**每局牌都一定会有一个状元**——它是本游戏的头奖，
- * 追状元环节也靠它启动。所以「降低状元概率」能调的是「什么时候出现、
- * 出现几次易主」，而不是「这局有没有状元」。
- *
- * 想让某些牌局干脆没有状元，只能把这个轮次数拉大（甚至取消保底），
- * 代价是牌局会拖得很长、还可能在一局毫无高潮的情况下草草结束。
- * 当前值 5 是「牌局长度」和「必然有头奖」之间的折中，不建议动。
- */
-export const CHAMPION_GUARANTEE_ROUND = 5;
-
-/**
- * 月华加持触发时，生成 Champion Tier 的权重。
- * 普通状元常见，顶级状元依然罕见。
- */
-export const CHAMPION_WEIGHTS: Readonly<Record<string, number>> = {
-  FOUR_FOUR: 64,
-  FIVE_SCHOLAR: 27,
-  FIVE_FOUR: 5,
-  SIX_BLACK: 1,
-  BROCADE: 1,
-  SIX_FOUR: 1,
-  CHAMPION_FLOWER: 1,
-};
-
-/* ---------------- 积分 ---------------- */
-
-/** 最终状元额外奖励。 */
 export const CHAMPION_BONUS = 100;
 
 /* ---------------- 历史与日志 ---------------- */
@@ -176,10 +134,5 @@ export const GAME_CONFIG = {
   ABANDON_GRACE_MS,
   TURN_TIMEOUT_MS,
   TURN_TIMEOUT_OFFLINE_MS,
-  MOON_BLESSING_START_ROUND,
-  MOON_BLESSING_INITIAL_RATE,
-  MOON_BLESSING_RATE_INCREMENT,
-  MOON_BLESSING_MAX_RATE,
-  CHAMPION_GUARANTEE_ROUND,
   CHAMPION_BONUS,
 } as const;

@@ -6,6 +6,13 @@
  * 走完整的入席 → 开局 → 逐回合博饼 → 追状元 → 结算流程，
  * 并在每一步校验「所有人看到的是同一副骰子」。
  *
+ * ⚠️ 本局现在打的是「博到饼尽」：五样普通饼全部博完才收席，骰子不做任何干预，
+ * 所以一局约 111~177 掷（中位约 4.8 分钟纯动画时间），**跑满约 6 分钟**。
+ * 这是唯一一个真的打完一局的冒烟脚本，别提前掐掉它。
+ *
+ * 这里刻意**不给服务端加测试专用旋钮**（比如用环境变量缩短库存）：
+ * 代价只是这个脚本慢几分钟，换来的是生产代码里不留任何测试钩子。
+ *
  * 用法：
  *   终端 A:  npm run dev:server
  *   终端 B:  npm run test:e2e
@@ -14,6 +21,14 @@ import { io } from 'socket.io-client';
 
 const URL = process.env.E2E_URL ?? 'http://localhost:3001';
 const PLAYER_COUNT = 4;
+
+/** 全局收席判定里的五个普通奖池 —— 与 server/src/config/prizes.ts 的 ENDING_PRIZE_KEYS 一致（纯 JS 引不到 TS）。 */
+const ENDING_KEYS = ['ONE_SHOW', 'TWO_LIFT', 'THREE_RED', 'FOUR_ADVANCE', 'DUITANG'];
+
+/** 三条各自独立的收工线：掷骰太多次、空转太多次、跑得太久，各报各的错。 */
+const MAX_ROLLS = 800;
+const MAX_LOOP_TURNS = 4_000;
+const MAX_GAME_MS = 15 * 60_000;
 
 let failures = 0;
 let checks = 0;
@@ -211,18 +226,43 @@ async function main() {
   check('第一位由座位 1 起手', firstTurn?.seat === 1);
   check('回合带 turnId', typeof firstTurn?.turnId === 'string' && firstTurn.turnId.length > 0);
   check('回合有服务端权威截止时间', firstTurn?.deadlineAt > Date.now() - 5_000);
-  check('开局时库存按 4 人局配置', host.snap.inventory.counts.ONE_SHOW === 16 && host.snap.inventory.counts.CHAMPION === 1);
+
+  // 断言**形状**而不是写死份数：份数由判奖概率算出来，改判奖表它就该跟着变。
+  // `initial` 是开局库存的快照，这里存下来，局末再比对一次（见 [5]）。
+  const openingCounts = host.snap.inventory.initial; // initial 本身就是一张 key→份数 的平表
+  check(
+    '开局按一桌饼配货，五样普通饼都有货、状元恰好一份',
+    ENDING_KEYS.every((k) => openingCounts[k] > 0) && openingCounts.CHAMPION === 1,
+    JSON.stringify(openingCounts),
+  );
+  check(
+    '开局库存（counts）与开局配货（initial）一致',
+    JSON.stringify(host.snap.inventory.counts) === JSON.stringify(openingCounts),
+  );
 
   /* ---------------- 4. 追一局到结束 ---------------- */
-  console.log('\n[4] 逐回合博饼直至结算');
+  console.log('\n[4] 逐回合博饼直至结算（博到饼尽，约 6 分钟）');
 
   const rollRecordsByIndex = new Map(); // rollIndex -> Set(序列化后的骰子)
   let actionCounter = 0;
-  let guard = 0;
+  let loops = 0; // 循环空转次数（等结算 / 等回合推进）
+  let rolledCount = 0; // 真正博出去的次数
+  const gameStartedAt = Date.now();
 
   while (host.snap.phase !== 'FINISHED') {
-    guard += 1;
-    if (guard > 400) throw new Error('回合数异常，可能存在死循环');
+    loops += 1;
+    if (loops > MAX_LOOP_TURNS) {
+      throw new Error(`循环空转 ${MAX_LOOP_TURNS} 次仍未结席：回合可能卡住不推进`);
+    }
+    if (rolledCount > MAX_ROLLS) {
+      throw new Error(`已博 ${MAX_ROLLS} 次仍未结席：收席闸门可能失效`);
+    }
+    if (Date.now() - gameStartedAt > MAX_GAME_MS) {
+      throw new Error(
+        `本局已跑满 ${MAX_GAME_MS / 60_000} 分钟仍未结席（已博 ${rolledCount} 次）——` +
+          '运气极长的牌局也可能触发，请先看服务端日志里对堂是不是一直没博出来',
+      );
+    }
 
     const snap = host.snap;
     if (snap.phase === 'SETTLING') {
@@ -257,6 +297,7 @@ async function main() {
       actionId: `act_${actionCounter++}`,
     });
     if (res?.ok !== true) throw new Error(`博饼被拒：${res?.error} ${res?.message}`);
+    rolledCount += 1;
 
     // 4c. 立刻用同一 turnId、不同 actionId 再博一次 —— 必须被拒
     const again = await ask(actor.socket, 'game:roll', {
@@ -303,7 +344,8 @@ async function main() {
     );
   }
 
-  console.log(`\n  本局共进行了 ${guard} 次博饼`);
+  const elapsedSec = Math.round((Date.now() - gameStartedAt) / 1000);
+  console.log(`\n  本局共博了 ${rolledCount} 次，用时约 ${Math.floor(elapsedSec / 60)} 分 ${elapsedSec % 60} 秒`);
 
   /* ---------------- 5. 结算校验 ---------------- */
   console.log('\n[5] 结算与排行榜');
@@ -312,30 +354,91 @@ async function main() {
     await waitFor(`${names[c.index]} 收到结算`, () => c.snap?.phase === 'FINISHED');
   }
 
+  const stats = host.snap.stats;
   const result = host.snap.result;
-  check('产生了结算结果', result !== null && result !== undefined);
-  check('最终状元在四人之中', clients.some((c) => c.playerId === result.finalChampionId));
-  check('状元基础分与其骰型一致', result.championBaseScore > 0);
-  check('状元奖励固定 100 分', result.championBonus === 100);
+  const inventory = host.snap.inventory;
+
+  // 已经 FINISHED 却拿不到 result，那就没有后面可断言的了 —— 直接报错，别让下面的
+  // `result.endReason` 抛一个看不懂的 TypeError 把真正的原因盖掉。
+  if (!result) throw new Error('已进入 FINISHED 但快照里没有 result（结算数据没下发）');
+  check('产生了结算结果', result != null);
+  check(
+    '收席原因只有两种（博到饼尽 / 兜底中止）',
+    result.endReason === 'INVENTORY_EMPTY' || result.endReason === 'ABORTED',
+    result.endReason,
+  );
+  check('本局确实是博到饼尽收席', result.endReason === 'INVENTORY_EMPTY', result.endReason);
+
+  const champion = result.champion;
   check('排行榜含全部 4 人', result.ranking.length === PLAYER_COUNT);
   check('排行榜按积分降序', result.ranking.every((e, i, a) => i === 0 || a[i - 1].score >= e.score));
-  check('恰好一人被标记为最终状元', result.ranking.filter((e) => e.isFinalChampion).length === 1);
-  check(
-    '只有最终状元持有状元奖品',
-    result.ranking.filter((e) => e.prizes.some((p) => p.key === 'CHAMPION')).length === 1,
-  );
-  check('状元库存已归零', host.snap.inventory.counts.CHAMPION === 0);
+  check('名次是 1~4 名', result.ranking.map((e) => e.rank).join(',') === '1,2,3,4');
 
-  const champ = result.ranking.find((e) => e.isFinalChampion);
-  const expected = result.championBaseScore + 100;
-  const championScoreFromRolls = host.snap.rollHistory
-    .filter((r) => r.playerId === champ.playerId)
-    .reduce((a, r) => a + r.scoreGained, 0);
+  // 收席那一刻：五个普通奖池应当正好清空
   check(
-    '状元的积分 = 其他得分 + 基础分 + 100',
-    champ.score === championScoreFromRolls + expected,
-    `${champ.score} vs ${championScoreFromRolls + expected}`,
+    '五样普通饼全部博尽（这就是收席条件）',
+    ENDING_KEYS.every((k) => inventory.counts[k] === 0),
+    JSON.stringify(inventory.counts),
   );
+  check(
+    '开局配货（initial）不因中途博饼而改动',
+    JSON.stringify(inventory.initial) === JSON.stringify(openingCounts),
+  );
+  check('掷骰次数与博饼记录条数一致', stats.totalRolls === host.snap.rollHistory.length);
+
+  /* --- 5a. 有状元 / 无状元是一对**互斥**的分支，各自全量断言 --- */
+  // 骰子完全随机之后约四分之一的牌局一个状元都博不出来 —— 那是正常结局，
+  // 不是「数据没同步」，所以这里不能只断言「必有状元」那一支。
+  const marked = result.ranking.filter((e) => e.isFinalChampion);
+  const championPrizeHolders = result.ranking.filter((e) =>
+    e.prizes.some((p) => p.key === 'CHAMPION'),
+  );
+  console.log(
+    champion
+      ? `  本局状元：${champion.nickname}（${champion.seat} 号席）· ${champion.awardId} · ${champion.dice.join(' ')}`
+      : '  本局无状元：状元那一份饼原封留在桌上',
+  );
+
+  if (champion) {
+    check('最终状元在四人之中', clients.some((c) => c.playerId === champion.playerId));
+    check('状元基础分与所选骰型自洽（> 0）', champion.baseScore > 0);
+    check('状元骰型是六颗合法骰子', champion.dice.length === 6 && champion.dice.every((d) => d >= 1 && d <= 6));
+    check('状元奖励固定 100 分', champion.bonus === 100);
+
+    check('恰好一人被标记为最终状元', marked.length === 1, `${marked.length} 人`);
+    check('被标记的正是 result.champion 那位', marked[0]?.playerId === champion.playerId);
+    check('只有最终状元持有状元奖品', championPrizeHolders.length === 1, `${championPrizeHolders.length} 人`);
+    check('状元库存已归零', inventory.counts.CHAMPION === 0);
+    // 服务端自己记的账（firstChampionRollIndex）与它下发的 result.champion 必须自洽
+    check('有状元 ⟺ firstChampionRollIndex 有记录', stats.firstChampionRollIndex !== null);
+    check(
+      'firstChampionRollIndex 落在本局掷骰范围内',
+      stats.firstChampionRollIndex >= 1 && stats.firstChampionRollIndex <= stats.totalRolls,
+      String(stats.firstChampionRollIndex),
+    );
+
+    const champ = marked[0];
+    if (champ) {
+      const expected = champion.baseScore + champion.bonus;
+      const championScoreFromRolls = host.snap.rollHistory
+        .filter((r) => r.playerId === champ.playerId)
+        .reduce((a, r) => a + r.scoreGained, 0);
+      check(
+        '状元的积分 = 逐掷得分 + 基础分 + 100',
+        champ.score === championScoreFromRolls + expected,
+        `${champ.score} vs ${championScoreFromRolls + expected}`,
+      );
+    }
+  } else {
+    check('无人被标记为最终状元', marked.length === 0, `${marked.length} 人`);
+    check('无人持有状元奖品', championPrizeHolders.length === 0, `${championPrizeHolders.length} 人`);
+    check('状元那一份饼原封留在桌上', inventory.counts.CHAMPION === 1);
+    check('无状元 ⟺ firstChampionRollIndex 为空', stats.firstChampionRollIndex === null);
+    check(
+      '本局确实一次状元档都没博出过',
+      host.snap.rollHistory.every((r) => !r.isChampionTier),
+    );
+  }
 
   const standings = result.ranking.map((e) => `${e.rank}.${e.nickname}(${e.score})`).join('  ');
   console.log(`  最终名次：${standings}`);
@@ -347,18 +450,31 @@ async function main() {
   const versions = new Set(clients.map((c) => c.snap.stateVersion));
   check('四人最终 stateVersion 一致', versions.size === 1, [...versions].join(','));
   check('没有任何客户端收到过倒退的 stateVersion', clients.every((c) => c.sameVersionViolations === 0));
-  check('每次开奖都广播到了四个人', clients.every((c) => c.seenRolls.length === host.snap.stats.totalRolls));
+  check('每次开奖都广播到了四个人', clients.every((c) => c.seenRolls.length === stats.totalRolls));
 
-  const stats = host.snap.stats;
-  check('统计里首状元序号有记录', stats.firstChampionRollIndex !== null);
   check('统计里总掷骰次数与历史一致', stats.totalRolls === host.snap.rollHistory.length);
+  check('代掷次数不可能超过总掷骰次数', stats.autoRolls <= stats.totalRolls);
+  check('易主次数不可能超过总掷骰次数', stats.championReplacements <= stats.totalRolls);
+
+  // 双向对账：脚本收到过的每一次开奖，服务端都必须记在 rollHistory 里，反之亦然。
+  // 单向的 size 比较会被「恰好两个方向各错一次」蒙混过去。
+  const historyIndexes = new Set(host.snap.rollHistory.map((r) => r.rollIndex));
   check(
-    '若出现过加持/保底，标记都被记录下来',
-    stats.blessedRolls <= stats.totalRolls && stats.autoRolls <= stats.totalRolls,
+    '脚本观察到的每一次开奖，服务端都记进了 rollHistory',
+    [...rollRecordsByIndex.keys()].every((i) => historyIndexes.has(i)),
+    `${rollRecordsByIndex.size} 次观察到 / ${historyIndexes.size} 条记录`,
   );
+  check(
+    '服务端记的每一次开奖，脚本都观察到了',
+    host.snap.rollHistory.every((r) => rollRecordsByIndex.has(r.rollIndex)),
+  );
+
   console.log(
-    `  本局统计：共 ${stats.totalRolls} 掷，首状元在第 ${stats.firstChampionRollIndex} 掷，` +
-      `易主 ${stats.championReplacements} 次，月华加持 ${stats.blessedRolls} 次，超时代掷 ${stats.autoRolls} 次`,
+    `  本局统计：共 ${stats.totalRolls} 掷，` +
+      (stats.firstChampionRollIndex === null
+        ? '本局无状元'
+        : `首状元在第 ${stats.firstChampionRollIndex} 掷`) +
+      `，易主 ${stats.championReplacements} 次，超时代掷 ${stats.autoRolls} 次`,
   );
 
   /* ---------------- 7. 刷新重连 ---------------- */
@@ -408,7 +524,13 @@ async function main() {
   const start2 = await ask(host.socket, 'game:start', undefined);
   check('重开后可以立刻开第二局', start2?.ok === true, start2?.message);
   await waitFor('第二局开始', () => host.snap.phase === 'NORMAL_TURN');
-  check('第二局库存按人数重建', host.snap.inventory.counts.ONE_SHOW === 16 && host.snap.inventory.counts.CHAMPION === 1);
+  // 一桌饼是定量的：第二局的配货必须与第一局**逐位相同**（不写死份数，免得旋钮一动就再挂一次）
+  check(
+    '第二局库存按一桌饼重建，与第一局开局逐位一致',
+    JSON.stringify(host.snap.inventory.counts) === JSON.stringify(openingCounts),
+    JSON.stringify(host.snap.inventory.counts),
+  );
+  check('第二局状元库存重新有货', host.snap.inventory.counts.CHAMPION === 1);
   check('第二局的 turnId 不与上一局重复', host.snap.currentTurn.turnId !== firstGameTurnId);
   check('第二局掷骰计数重新开始', host.snap.stats.totalRolls === 0 && host.snap.rollHistory.length === 0);
   check('第二局清空上一局的状元', host.snap.champion.finalPlayerId === null && host.snap.champion.playerId === null);

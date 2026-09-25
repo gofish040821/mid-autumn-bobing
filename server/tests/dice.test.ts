@@ -1,39 +1,26 @@
 /**
- * DiceService 测试。
+ * DiceService / AwardOdds / 库存闸门 测试。
  *
  * 重点：
  *  - 随机骰子的边界（rng 返回 0 / 1 / NaN 都不能越界）；
- *  - 月华加持的概率曲线与保底；
- *  - 构造出来的状元骰型**必须恰好等于目标奖项**，不能意外升级或降级。
+ *  - 判奖表的**自然概率**与穷举计数逐位对齐；
+ *  - 收席闸门认得全五个普通奖池、且绝不把状元算进去。
  */
 import { describe, expect, it } from 'vitest';
-import { AWARD_MAP } from '@bobing/shared';
-import type { AwardId } from '@bobing/shared';
+import { PRIZE_KEYS } from '@bobing/shared';
+import type { PrizeKey } from '@bobing/shared';
 
 import {
-  CHAMPION_GUARANTEE_ROUND,
-  CHAMPION_WEIGHTS,
-  MAX_PLAYERS,
-  MIN_PLAYERS,
-  MOON_BLESSING_INITIAL_RATE,
-  MOON_BLESSING_MAX_RATE,
-  MOON_BLESSING_RATE_INCREMENT,
-  MOON_BLESSING_START_ROUND,
-  TURN_TIMEOUT_MS,
-  TURN_TIMEOUT_OFFLINE_MS,
-} from '../src/config/gameConfig';
-import {
-  computeBlessingRate,
-  generateChampionDice,
-  guaranteeRollNumber,
-  isGuaranteedRoll,
-  pickWeightedChampion,
-  randomFace,
-  rollChasePhase,
-  rollNormalPhase,
-  rollRawDice,
-} from '../src/game/DiceService';
-import { evaluateDice, isValidDice } from '../src/game/RuleEngine';
+  ENDING_PRIZE_KEYS,
+  ENDING_PRIZE_KEYS_IS_COMPLETE,
+  buildInventory,
+  emptyInventory,
+} from '../src/config/prizes';
+import { MAX_PLAYERS, MIN_PLAYERS, TURN_TIMEOUT_MS, TURN_TIMEOUT_OFFLINE_MS } from '../src/config/gameConfig';
+import { awardOdds } from '../src/game/AwardOdds';
+import { randomFace, rollRawDice } from '../src/game/DiceService';
+import { isInventoryExhausted } from '../src/game/PrizeService';
+import { isValidDice } from '../src/game/RuleEngine';
 
 /* ------------------------------------------------------------------ *
  * 测试用随机源
@@ -41,22 +28,6 @@ import { evaluateDice, isValidDice } from '../src/game/RuleEngine';
 
 /** 固定返回一个值的 rng。 */
 const fixed = (value: number) => () => value;
-
-/** 按队列依次返回，队列空了就回落到 fallback。 */
-function queueRng(values: number[], fallback = 0.99) {
-  const queue = [...values];
-  return () => (queue.length > 0 ? (queue.shift() as number) : fallback);
-}
-
-/** 按固定长度循环返回，用于模拟「每一把都掷出同一组骰子」。 */
-function cycleRng(pattern: number[]) {
-  let i = 0;
-  return () => {
-    const value = pattern[i % pattern.length] as number;
-    i += 1;
-    return value;
-  };
-}
 
 /** 确定性伪随机，用于跑大量样本。 */
 function lcg(seed: number) {
@@ -66,19 +37,6 @@ function lcg(seed: number) {
     return s / 4294967296;
   };
 }
-
-/** 把 1~6 的面转成对应的 rng 取值（取每个区间的中点）。 */
-const faces = (...f: number[]): number[] => f.map((v) => (v - 0.5) / 6);
-
-const CHAMPION_IDS = [
-  'FOUR_FOUR',
-  'FIVE_SCHOLAR',
-  'FIVE_FOUR',
-  'SIX_BLACK',
-  'BROCADE',
-  'SIX_FOUR',
-  'CHAMPION_FLOWER',
-] as const satisfies readonly AwardId[];
 
 /* ------------------------------------------------------------------ *
  * 随机骰子
@@ -107,227 +65,116 @@ describe('DiceService · 基础随机', () => {
     }
   });
 
-  it('rollChasePhase 是纯随机，不做任何干预', () => {
-    for (let seed = 0; seed < 100; seed += 1) {
-      expect(isValidDice(rollChasePhase(lcg(seed + 7)))).toBe(true);
+  it('六颗骰子各自独立，不是同一个值重复六遍', () => {
+    // 一条非常便宜的护栏：真出现「骰子被写死成一个值」这种事故时，
+    // 上面那条 isValidDice 照样会过，只有这一条会炸。
+    let sawDifferentFaces = false;
+    for (let seed = 0; seed < 50 && !sawDifferentFaces; seed += 1) {
+      const dice = rollRawDice(lcg(seed + 991));
+      if (new Set(dice).size > 1) sawDifferentFaces = true;
     }
+    expect(sawDifferentFaces).toBe(true);
   });
 });
 
 /* ------------------------------------------------------------------ *
- * 状元骰型构造
+ * 判奖表的自然概率
  * ------------------------------------------------------------------ */
 
-describe('DiceService · 状元骰型构造', () => {
-  for (const id of CHAMPION_IDS) {
-    it(`${id} 构造出的骰子恰好是它本身（200 次采样）`, () => {
-      for (let seed = 0; seed < 200; seed += 1) {
-        const dice = generateChampionDice(id, lcg(seed * 31 + 1));
-        expect(isValidDice(dice)).toBe(true);
-        const award = evaluateDice(dice);
-        expect(award.id).toBe(id);
-        expect(award.tier).toBe('CHAMPION');
-      }
-    });
-  }
+describe('AwardOdds · 穷举出来的自然概率', () => {
+  const odds = awardOdds();
 
-  it('四点红绝不会被意外构造出「两颗一点」而升级成插金花', () => {
-    // 这是最容易写错的一处：四颗四点 + 两颗一点 = 插金花，不是四点红
-    for (let seed = 0; seed < 500; seed += 1) {
-      const dice = generateChampionDice('FOUR_FOUR', lcg(seed + 101));
-      const fours = dice.filter((d) => d === 4).length;
-      const ones = dice.filter((d) => d === 1).length;
-      expect(fours).toBe(4);
-      expect(ones).toBeLessThanOrEqual(1);
-      expect(evaluateDice(dice).id).toBe('FOUR_FOUR');
-    }
+  it('分母就是 6^6', () => {
+    expect(odds.total).toBe(46656);
   });
 
-  it('五红 / 五子登科的第六颗一定与重复点数不同，不会变成六抔黑', () => {
-    for (let seed = 0; seed < 300; seed += 1) {
-      const fiveRed = generateChampionDice('FIVE_FOUR', lcg(seed + 11));
-      expect(fiveRed.filter((d) => d === 4)).toHaveLength(5);
-
-      const fiveScholar = generateChampionDice('FIVE_SCHOLAR', lcg(seed + 13));
-      const counts = new Map<number, number>();
-      for (const d of fiveScholar) counts.set(d, (counts.get(d) ?? 0) + 1);
-      expect(Math.max(...counts.values())).toBe(5);
-      expect(counts.get(4) ?? 0).toBe(0);
-      expect(evaluateDice(fiveScholar).id).toBe('FIVE_SCHOLAR');
-    }
+  it('每个奖池命中的组合数与判奖表逐一对应', () => {
+    // 这几个数是「六颗均匀骰子」下的真值，改判奖表必然要一起改这里。
+    // 它们同时是 prizes.ts 配货比例的分子 —— 两处必须一致。
+    expect(odds.byPrizeKey.ONE_SHOW).toBe(17400);
+    expect(odds.byPrizeKey.TWO_LIFT).toBe(9300);
+    expect(odds.byPrizeKey.THREE_RED).toBe(2500);
+    expect(odds.byPrizeKey.FOUR_ADVANCE).toBe(1875);
+    expect(odds.byPrizeKey.DUITANG).toBe(720);
+    expect(odds.byPrizeKey.CHAMPION).toBe(561);
   });
 
-  it('生成的状元骰型不会误伤成更低的普通奖项', () => {
-    for (const id of CHAMPION_IDS) {
-      const award = evaluateDice(generateChampionDice(id, lcg(5)));
-      expect(award.tier).toBe('CHAMPION');
-      expect(award.championRank).toBe(AWARD_MAP[id].championRank);
-    }
+  it('状元档 = 七个 Champion Tier 之和，且只有 1.2024%', () => {
+    const championTiers = [
+      'FOUR_FOUR',
+      'FIVE_SCHOLAR',
+      'FIVE_FOUR',
+      'SIX_BLACK',
+      'BROCADE',
+      'SIX_FOUR',
+      'CHAMPION_FLOWER',
+    ] as const;
+    const sum = championTiers.reduce((acc, id) => acc + odds.byAwardId[id], 0);
+    expect(sum).toBe(odds.byPrizeKey.CHAMPION);
+    expect(sum).toBe(561);
+
+    // 这个数字是「约四分之一的牌局没有状元」的全部来源，值得写死一次。
+    expect(sum / odds.total).toBeCloseTo(0.012024, 6);
+  });
+
+  it('按奖项分类的总和等于全部组合数（不重不漏）', () => {
+    const sum = Object.values(odds.byAwardId).reduce((a, b) => a + b, 0);
+    expect(sum).toBe(odds.total);
+  });
+
+  it('无奖占了将近三成，这是判奖表的性质、不是 bug', () => {
+    expect(odds.byAwardId.NONE).toBe(14300);
+    expect(odds.byPrizeKey.ONE_SHOW + odds.byPrizeKey.TWO_LIFT + odds.byPrizeKey.THREE_RED
+      + odds.byPrizeKey.FOUR_ADVANCE + odds.byPrizeKey.DUITANG + odds.byPrizeKey.CHAMPION
+      + odds.byAwardId.NONE).toBe(odds.total);
   });
 });
 
 /* ------------------------------------------------------------------ *
- * 加权抽取
+ * 收席闸门
  * ------------------------------------------------------------------ */
 
-describe('DiceService · 状元加权抽取', () => {
-  it('rng → 0 时命中权重表的第一项', () => {
-    expect(pickWeightedChampion(fixed(0))).toBe('FOUR_FOUR');
+describe('prizes · 收口奖池', () => {
+  it('每一个 key 都是真实的奖池，且不含状元', () => {
+    for (const key of ENDING_PRIZE_KEYS) {
+      expect(PRIZE_KEYS).toContain(key as PrizeKey);
+      expect(key).not.toBe('CHAMPION');
+    }
+    // 状元必须被排除在外：consumePrize 对它一律 deferred，
+    // 算进闸门 = 这道门永远打不开、牌局永远收不了席。
+    expect(ENDING_PRIZE_KEYS).not.toContain('CHAMPION');
   });
 
-  it('rng → 0.999… 时命中权重表的最后一项', () => {
-    expect(pickWeightedChampion(fixed(0.999999))).toBe('CHAMPION_FLOWER');
-  });
-
-  it('抽取分布大致符合权重（四点红最常见，顶级状元罕见）', () => {
-    const rng = lcg(20240915);
-    const tally = new Map<string, number>();
-    const samples = 60_000;
-    for (let i = 0; i < samples; i += 1) {
-      const id = pickWeightedChampion(rng);
-      tally.set(id, (tally.get(id) ?? 0) + 1);
-    }
-    const totalWeight = Object.values(CHAMPION_WEIGHTS).reduce((a, b) => a + b, 0);
-    for (const [id, weight] of Object.entries(CHAMPION_WEIGHTS)) {
-      const actual = (tally.get(id) ?? 0) / samples;
-      const expected = weight / totalWeight;
-      // 60k 采样下 3 个百分点的容差足够宽松，又能挡住真正的逻辑错误
-      expect(Math.abs(actual - expected)).toBeLessThan(0.03);
-    }
-  });
-
-  it('权重为 0 的项永远不会被抽到', () => {
-    const weights = { FOUR_FOUR: 1, SIX_FOUR: 0, BROCADE: 0 };
-    for (let seed = 0; seed < 200; seed += 1) {
-      expect(pickWeightedChampion(lcg(seed + 3), weights)).toBe('FOUR_FOUR');
-    }
+  it('恰好覆盖「除状元以外的全部奖池」', () => {
+    expect(ENDING_PRIZE_KEYS_IS_COMPLETE).toBe(true);
+    expect([...ENDING_PRIZE_KEYS].sort()).toEqual(
+      PRIZE_KEYS.filter((k) => k !== 'CHAMPION').sort(),
+    );
   });
 });
 
-/* ------------------------------------------------------------------ *
- * 月华加持
- * ------------------------------------------------------------------ */
+describe('PrizeService · isInventoryExhausted', () => {
+  it('开局那一桌不算博尽', () => {
+    expect(isInventoryExhausted(buildInventory())).toBe(false);
+  });
 
-describe('DiceService · 月华加持概率曲线', () => {
-  const N = MIN_PLAYERS; // 2
+  it('五样普通饼全空才算博尽，哪怕状元还留着', () => {
+    const inventory = buildInventory();
+    for (const key of ENDING_PRIZE_KEYS) inventory.counts[key] = 0;
+    expect(inventory.counts.CHAMPION).toBe(1);
+    expect(isInventoryExhausted(inventory)).toBe(true);
+  });
 
-  it('第一轮（前 N 次）完全不干预，概率为 0', () => {
-    for (let done = 0; done < N; done += 1) {
-      expect(computeBlessingRate(done, N)).toBe(0);
+  it('只要还有任意一样普通饼没博完，就不收席', () => {
+    for (const key of ENDING_PRIZE_KEYS) {
+      const inventory = emptyInventory();
+      inventory.counts[key] = 1;
+      expect(isInventoryExhausted(inventory)).toBe(false);
     }
   });
 
-  it(`第二轮第一次的概率等于 MOON_BLESSING_INITIAL_RATE（${MOON_BLESSING_INITIAL_RATE}）`, () => {
-    expect(computeBlessingRate(N, N)).toBeCloseTo(MOON_BLESSING_INITIAL_RATE, 10);
-  });
-
-  it(`之后每掷一次加 ${MOON_BLESSING_RATE_INCREMENT}，且封顶 ${MOON_BLESSING_MAX_RATE}`, () => {
-    const startRoll = (MOON_BLESSING_START_ROUND - 1) * N + 1;
-    for (let rollNumber = startRoll; rollNumber <= startRoll + 40; rollNumber += 1) {
-      const done = rollNumber - 1;
-      const expected = Math.min(
-        MOON_BLESSING_INITIAL_RATE + MOON_BLESSING_RATE_INCREMENT * (rollNumber - startRoll),
-        MOON_BLESSING_MAX_RATE,
-      );
-      expect(computeBlessingRate(done, N)).toBeCloseTo(expected, 10);
-    }
-  });
-
-  it('概率单调不减', () => {
-    let prev = -1;
-    for (let done = 0; done < 60; done += 1) {
-      const rate = computeBlessingRate(done, N);
-      expect(rate).toBeGreaterThanOrEqual(prev);
-      prev = rate;
-    }
-  });
-
-  it('人数为 0 时不做任何加持', () => {
-    expect(computeBlessingRate(0, 0)).toBe(0);
-    expect(computeBlessingRate(50, 0)).toBe(0);
-  });
-
-  it('人数越多，加持开启得越晚（第一轮永远是 N 次）', () => {
-    for (const n of [MIN_PLAYERS, 6, 8, MAX_PLAYERS]) {
-      for (let done = 0; done < n; done += 1) {
-        expect(computeBlessingRate(done, n)).toBe(0);
-      }
-      expect(computeBlessingRate(n, n)).toBeGreaterThan(0);
-    }
-  });
-});
-
-describe('DiceService · 保底', () => {
-  it(`保底序号恒为 ${CHAMPION_GUARANTEE_ROUND}N`, () => {
-    expect(guaranteeRollNumber(MIN_PLAYERS)).toBe(CHAMPION_GUARANTEE_ROUND * MIN_PLAYERS);
-    expect(guaranteeRollNumber(MAX_PLAYERS)).toBe(CHAMPION_GUARANTEE_ROUND * MAX_PLAYERS);
-    for (let n = 1; n <= 20; n += 1) {
-      expect(guaranteeRollNumber(n)).toBe(CHAMPION_GUARANTEE_ROUND * n);
-    }
-  });
-
-  it('只有到达保底序号那一次才算保底', () => {
-    const N = MIN_PLAYERS;
-    const at = guaranteeRollNumber(N);
-    expect(isGuaranteedRoll(at - 2, N)).toBe(false); // 已完成 at-2 次 → 下一次是第 at-1 次
-    expect(isGuaranteedRoll(at - 1, N)).toBe(true); //  已完成 at-1 次 → 下一次正好是第 at 次
-    expect(isGuaranteedRoll(at, N)).toBe(true); //      已经越过保底线，仍然保底
-  });
-});
-
-describe('DiceService · 普通阶段掷骰', () => {
-  it('本来就是状元时直接采用，不消耗加持', () => {
-    const outcome = rollNormalPhase(0, MIN_PLAYERS, queueRng(faces(4, 4, 4, 4, 2, 6)));
-    expect(evaluateDice(outcome.dice).id).toBe('FOUR_FOUR');
-    expect(outcome.blessed).toBe(false);
-    expect(outcome.guaranteed).toBe(false);
-  });
-
-  it('第一轮永远不会加持出状元', () => {
-    // 每一把都掷出同一组「无奖」骰子；第一轮 rate 恒为 0，所以永远不会被加持成状元
-    const rng = cycleRng(faces(2, 3, 5, 6, 1, 2));
-    for (let done = 0; done < MIN_PLAYERS; done += 1) {
-      const outcome = rollNormalPhase(done, MIN_PLAYERS, rng);
-      expect(outcome.blessed).toBe(false);
-      expect(outcome.guaranteed).toBe(false);
-      expect(evaluateDice(outcome.dice).tier).not.toBe('CHAMPION');
-    }
-  });
-
-  it('概率命中时会加持出一个真正的 Champion Tier', () => {
-    // 第 2 轮第一次：rate = MOON_BLESSING_INITIAL_RATE。
-    // 判定值取 rate 的一半而不是写死一个常数 —— 这个 fixture 只要「必中」就行，
-    // 用常数的话每次调参都得回来改一遍，早晚有人漏掉。
-    const rng = queueRng([
-      ...faces(2, 3, 5, 6, 1, 2),
-      MOON_BLESSING_INITIAL_RATE / 2,
-      0.3,
-    ]);
-    const outcome = rollNormalPhase(MIN_PLAYERS, MIN_PLAYERS, rng);
-    expect(outcome.blessed).toBe(true);
-    expect(outcome.guaranteed).toBe(false);
-    expect(evaluateDice(outcome.dice).tier).toBe('CHAMPION');
-  });
-
-  it('概率没命中时保持原样', () => {
-    const rng = queueRng([...faces(2, 3, 5, 6, 1, 2), 0.99]);
-    const outcome = rollNormalPhase(MIN_PLAYERS, MIN_PLAYERS, rng);
-    expect(outcome.blessed).toBe(false);
-    expect(evaluateDice(outcome.dice).id).toBe('NONE');
-  });
-
-  it('到达保底序号时无条件保底，且不需要消耗「概率判定」', () => {
-    const outcome = rollNormalPhase(guaranteeRollNumber(MIN_PLAYERS) - 1, MIN_PLAYERS, fixed(0.3));
-    expect(outcome.guaranteed).toBe(true);
-    expect(outcome.blessed).toBe(false);
-    expect(evaluateDice(outcome.dice).tier).toBe('CHAMPION');
-  });
-
-  it('保底掷出的骰型与加权抽取结果一致', () => {
-    // rng 0.3 → 落在 FOUR_FOUR（权重 64）
-    const outcome = rollNormalPhase(guaranteeRollNumber(6) - 1, 6, fixed(0.3));
-    expect(outcome.guaranteed).toBe(true);
-    expect(evaluateDice(outcome.dice).id).toBe('FOUR_FOUR');
+  it('空桌（全零）算博尽 —— 收席判定不能依赖状元', () => {
+    expect(isInventoryExhausted(emptyInventory())).toBe(true);
   });
 });
 
@@ -350,26 +197,5 @@ describe('配置常量', () => {
     // 两边都写死数值还不够：真正要守住的是这个不等关系。
     // 哪天有人手滑把离线档调到比在线档还长，这一条会先炸。
     expect(TURN_TIMEOUT_OFFLINE_MS).toBeLessThan(TURN_TIMEOUT_MS);
-  });
-
-  it('月华参数自洽：初始值 < 上限，且增量能爬到上限', () => {
-    expect(MOON_BLESSING_INITIAL_RATE).toBeLessThan(MOON_BLESSING_MAX_RATE);
-    expect(MOON_BLESSING_INITIAL_RATE).toBeGreaterThan(0);
-    expect(MOON_BLESSING_RATE_INCREMENT).toBeGreaterThan(0);
-    expect(MOON_BLESSING_START_ROUND).toBe(2);
-
-    // 「能爬到上限」这句得真的验一下，否则 MOON_BLESSING_MAX_RATE 可能是一句空话：
-    // 加持从第 2 轮开到保底前的最后一次掷骰，机会次数最多的是满员牌局，
-    // 到那一次都还没到上限，就说明这个上限永远不可能生效。
-    const lastBlessedRoll = guaranteeRollNumber(MAX_PLAYERS) - 2;
-    expect(computeBlessingRate(lastBlessedRoll, MAX_PLAYERS)).toBe(MOON_BLESSING_MAX_RATE);
-  });
-
-  it('权重表里的每一个 key 都是真实的 Champion Tier', () => {
-    for (const id of Object.keys(CHAMPION_WEIGHTS)) {
-      const award = AWARD_MAP[id as AwardId];
-      expect(award).toBeDefined();
-      expect(award.tier).toBe('CHAMPION');
-    }
   });
 });

@@ -5,9 +5,9 @@
  * 骰子、奖项、积分、库存、状元归属全部来自服务端，客户端不自行判定任何结果。
  *
  * 布局（移动优先，DOM 顺序即手机单列顺序）：
- *   手机 < 640px  → 单列：状态条 → 倒计时 → 骰子 → 博饼 → 开奖回显 → 追状元 → 席位 → 题名榜 → 库存 → 月华 → 记录
+ *   手机 < 640px  → 单列：状态条 → 倒计时 → 骰子 → 博饼 → 开奖回显 → 追状元 → 席位 → 题名榜 → 库存 → 记录
  *   平板 640~1023 → 主舞台跨满宽在上，下面左右分栏（席位 / 库存）
- *   桌面 >= 1024  → 三栏（席位 / 主舞台 / 库存）+ 月华值一行 + 题名榜·博饼记录两栏
+ *   桌面 >= 1024  → 三栏（席位 / 主舞台 / 库存）+ 题名榜·博饼记录两栏
  */
 import { AnimatePresence, motion } from 'framer-motion';
 import { AWARD_MAP } from '@bobing/shared';
@@ -20,7 +20,6 @@ import ChampionPanel from '../components/ChampionPanel/ChampionPanel';
 import PlayerList from '../components/PlayerList/PlayerList';
 import ScoreBoard from '../components/ScoreBoard/ScoreBoard';
 import PrizeInventory from '../components/PrizeInventory/PrizeInventory';
-import MoonBlessing from '../components/MoonBlessing/MoonBlessing';
 import GameLog from '../components/GameLog/GameLog';
 
 import { awardName } from '../lib/format';
@@ -66,7 +65,6 @@ function LastRollLine({ roll }: LastRollLineProps) {
         ·
       </span>
       <span className="game-result__outcome">{outcome}</span>
-      {roll.blessed && <span className="badge badge--host">月华</span>}
       {roll.auto && <span className="badge">代掷</span>}
     </div>
   );
@@ -248,12 +246,7 @@ export default function GamePage(): JSX.Element {
           <PrizeInventory snapshot={snapshot} />
         </div>
 
-        {/* 11 月华值 */}
-        <div className="game__moon game-block">
-          <MoonBlessing snapshot={snapshot} />
-        </div>
-
-        {/* 12 游戏日志 */}
+        {/* 11 游戏日志 */}
         <div className="game__log game-block">
           <GameLog snapshot={snapshot} />
         </div>

@@ -383,6 +383,37 @@ async function main() {
     await checkNoOverflow(hostProbe, '游戏页');
     await shot(hostProbe, '04-game-desktop');
 
+    // 版面没有留空洞。
+    //
+    // `.game__grid` 在 640px 以上是一张 grid-template-areas 表：任何一处写错
+    // （少一格、多一格、拼不出矩形），浏览器会把**整条**声明丢掉，页面悄悄退化成
+    // 自动排列 —— 不报错、不崩、控制台干净，只是错位。所以这里直接问浏览器两件事：
+    // 模板到底解析成功没有，以及每一个格子是不是都真的被放进了自己那块区域。
+    const grid = await hostPage.evaluate(() => {
+      const el = document.querySelector('.game__grid');
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      const blocks = [...el.children].filter((c) => c.classList.contains('game-block'));
+      return {
+        isGrid: cs.display === 'grid',
+        areasParsed: cs.gridTemplateAreas !== 'none',
+        areas: cs.gridTemplateAreas,
+        // 自动排列的格子会解析成 "auto"，而带 grid-area 的一定是名字
+        autoPlaced: blocks
+          .map((c) => [...c.classList].find((n) => n.startsWith('game__')))
+          .filter((cls) => getComputedStyle(el.querySelector(`.${cls}`)).gridRowStart === 'auto'),
+        blockCount: blocks.length,
+      };
+    });
+    check('游戏页找得到 .game__grid', grid !== null);
+    check('桌面档的栅格模板被浏览器成功解析（写错会整条丢弃）', grid?.areasParsed === true, grid?.areas);
+    check(
+      '每一个版面块都被放进了自己的栅格区域（没有退化成自动排列）',
+      grid?.autoPlaced.length === 0,
+      (grid?.autoPlaced ?? []).join(', '),
+    );
+    check('栅格覆盖了全部版面块', (grid?.blockCount ?? 0) >= 10, `${grid?.blockCount} 块`);
+
     // 骰子是否画出来了
     const diceInfo = await hostPage.evaluate(() => {
       const nodes = document.querySelectorAll('[class*="dice"], [class*="die"]');

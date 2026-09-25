@@ -5,7 +5,7 @@
  *   1) 幕布（墨色压场，浓度按奖项等级：无奖几乎不压，Champion Tier 最深）
  *   2) 专属特效层（满月、灯笼、屏风、桂花…，见 effects.tsx）
  *   3) 中央金榜卷轴：从中间横向展开，写奖项名、得主、骰子回显与得分
- *   4) 四角朱砂印章 + 月华/代掷等小字
+ *   4) 四角朱砂印章 + 首中状元/金榜易主/代掷等小字
  *
  * 演出时长严格取自 shared 的 celebrationMsFor(awardId)，与骰子动画同一条时间轴，
  * 服务端推进下一回合的节奏才不会和画面对不上。减少动画时压缩到 500ms。
@@ -139,20 +139,6 @@ export default function AwardCelebration({ roll, onDone }: AwardCelebrationProps
   }
 
   const flags: JSX.Element[] = [];
-  if (roll.blessed) {
-    flags.push(
-      <span className="cel-flag" key="blessed">
-        月华加持
-      </span>,
-    );
-  }
-  if (roll.guaranteed) {
-    flags.push(
-      <span className="cel-flag" key="guaranteed">
-        月华已满
-      </span>,
-    );
-  }
   if (roll.becameFirstChampion) {
     flags.push(
       <span className="cel-flag cel-flag--win" key="first">

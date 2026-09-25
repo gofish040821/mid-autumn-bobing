@@ -1,17 +1,17 @@
 /**
- * ChampionService 测试：追状元队列、状元反超判定、月华值视图。
+ * ChampionService 测试：追状元队列、状元反超判定。
+ *
+ * 这里只管「谁在什么时候坐上状元位」，与骰子无关 —— 骰子永远均匀随机。
  */
 import { describe, expect, it } from 'vitest';
-import type { MoonBlessingView, PlayerState } from '@bobing/shared';
+import type { PlayerState } from '@bobing/shared';
 
 import {
   buildChaseQueue,
-  buildMoonBlessingView,
   emptyChampionState,
   shouldReplaceChampion,
 } from '../src/game/ChampionService';
-import { guaranteeRollNumber } from '../src/game/DiceService';
-import { MOON_BLESSING_START_ROUND, MAX_PLAYERS, MIN_PLAYERS } from '../src/config/gameConfig';
+import { MAX_PLAYERS, MIN_PLAYERS } from '../src/config/gameConfig';
 
 /** 造一批玩家，座位从 1 开始。 */
 function makePlayers(count: number): PlayerState[] {
@@ -130,102 +130,6 @@ describe('shouldReplaceChampion · 反超判定', () => {
       for (let challenger = 1; challenger <= 7; challenger += 1) {
         expect(shouldReplaceChampion(current, challenger)).toBe(challenger > current);
       }
-    }
-  });
-});
-
-describe('buildMoonBlessingView · 月华值视图', () => {
-  const N = MIN_PLAYERS;
-
-  const view = (normalRollCount: number, championFound = false, playerCount = N): MoonBlessingView =>
-    buildMoonBlessingView({ normalRollCount, playerCount, championFound });
-
-  it('第一轮完全低调（IDLE），不展示任何进度', () => {
-    for (let done = 0; done < N; done += 1) {
-      const v = view(done);
-      expect(v.stage).toBe('IDLE');
-      expect(v.rate).toBe(0);
-      expect(v.progress).toBe(0);
-      expect(v.text).toBe('月华未起');
-      expect(v.nearGuarantee).toBe(false);
-    }
-  });
-
-  it('第二轮起开始蓄力（CHARGING），进度随掷骰次数增长', () => {
-    const startRoll = (MOON_BLESSING_START_ROUND - 1) * N + 1;
-    const first = view(startRoll - 1);
-    expect(first.stage).toBe('CHARGING');
-    expect(first.progress).toBe(0);
-
-    const later = view(startRoll + 1);
-    expect(later.stage).toBe('CHARGING');
-    expect(later.progress).toBeGreaterThan(first.progress);
-
-    // 进度严格单调不减
-    let prev = -1;
-    for (let done = 0; done <= guaranteeRollNumber(N); done += 1) {
-      const v = view(done);
-      if (v.stage !== 'IDLE') {
-        expect(v.progress).toBeGreaterThanOrEqual(prev);
-        prev = v.progress;
-      }
-    }
-  });
-
-  it('临近保底时进入 FULL 并提示「月华将满 · 状元将至」', () => {
-    const near = view(guaranteeRollNumber(N) - 1);
-    expect(near.stage).toBe('FULL');
-    expect(near.nearGuarantee).toBe(true);
-    expect(near.text).toBe('月华将满 · 状元将至');
-    expect(near.progress).toBeGreaterThanOrEqual(0.75);
-  });
-
-  it('进度永远不超过 1', () => {
-    for (let done = 0; done <= 200; done += 1) {
-      expect(view(done).progress).toBeLessThanOrEqual(1);
-    }
-  });
-
-  it('状元出现后机制关闭（DONE）', () => {
-    const v = view(3, true);
-    expect(v.stage).toBe('DONE');
-    expect(v.rate).toBe(0);
-    expect(v.progress).toBe(1);
-    expect(v.text).toBe('状元已出 · 月华归隐');
-    expect(v.nearGuarantee).toBe(false);
-  });
-
-  it('guaranteeAtRoll 始终等于 guaranteeRollNumber(n)', () => {
-    for (let n = MIN_PLAYERS; n <= MAX_PLAYERS; n += 1) {
-      expect(view(0, false, n).guaranteeAtRoll).toBe(guaranteeRollNumber(n));
-    }
-  });
-
-  it('人数为 0 时不崩、不展示', () => {
-    const v = view(0, false, 0);
-    expect(v.stage).toBe('IDLE');
-    expect(v.rate).toBe(0);
-  });
-
-  it('所有文案都不出现「必出」「保证」这类明示保底的说法', () => {
-    const banned = ['必出', '必中', '保证', '一定', '必定', '包出'];
-    for (let done = 0; done <= 300; done += 1) {
-      for (const found of [false, true]) {
-        const text = view(done, found).text;
-        for (const word of banned) {
-          expect(text).not.toContain(word);
-        }
-      }
-    }
-  });
-
-  it('rate 单调不减且封顶 0.2', () => {
-    let prev = -1;
-    for (let done = 0; done <= 60; done += 1) {
-      const rate = view(done).rate;
-      expect(rate).toBeGreaterThanOrEqual(prev);
-      expect(rate).toBeLessThanOrEqual(0.2);
-      prev = rate;
     }
   });
 });

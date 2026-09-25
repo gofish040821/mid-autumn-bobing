@@ -2,26 +2,30 @@
  * GameEngine 集成测试 —— 题目 §41 里点名的全部边界情况。
  *
  * 全程使用 FakeClock + 可编排的确定性 Rng：
- * 时间与骰子都被完全掌控，所以「30 秒超时」「保底」这些
+ * 时间与骰子都被完全掌控，所以「30 秒超时」「饼尽收席」这些
  * 平时要靠运气的路径，在这里都是确定性的。
+ *
+ * 关于收席：默认牌是 57 份（约 125 掷），在这里跑一局要几分钟。
+ * 需要跑到 FINISHED 的用例统一换成「只剩最后一份饼」的小牌
+ * （见 lastPieceInventory），4 掷就能博完，而且走的是同一条闸门。
  */
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { ErrorCode, RollRecord } from '@bobing/shared';
+import type { ErrorCode, InventoryState, RollRecord } from '@bobing/shared';
 
 import {
   ABANDON_GRACE_MS,
   AUTO_START_COUNTDOWN_MS,
-  CHAMPION_GUARANTEE_ROUND,
   LOBBY_GHOST_TTL_MS,
   MAX_PLAYERS,
   MIN_PLAYERS,
   TURN_TIMEOUT_MS,
   TURN_TIMEOUT_OFFLINE_MS,
 } from '../src/config/gameConfig';
+import { ENDING_PRIZE_KEYS, buildInventory } from '../src/config/prizes';
+import type { EndingPrizeKey } from '../src/config/prizes';
 import { FakeClock } from '../src/game/Clock';
 import { GameEngine } from '../src/game/GameEngine';
 import type { EngineEvent, EngineResult } from '../src/game/GameEngine';
-import { guaranteeRollNumber } from '../src/game/DiceService';
 
 /* ------------------------------------------------------------------ *
  * 测试脚手架
@@ -45,17 +49,26 @@ const D_SIX_FOUR = faces(4, 4, 4, 4, 4, 4); //      六杯红   状元 rank 6
 
 /**
  * 可编排的随机源。
- * 队列为空时回落到 fallback —— fallback 取 0.99 有两个作用：
- *   1. 月华概率判定（rng() < rate）永远不命中，测试不会「意外加持」；
- *   2. 保底时按权重抽出最顶级的状元插金花，结果仍然确定。
+ *
+ * 队列为空时回落到**循环的 D_NONE**：六颗骰子恰好六次调用，
+ * 而 D_NONE 的长度也是六，于是「没预设骰子」永远等于「掷出一把无奖」。
+ *
+ * 这一点很重要：六颗骰子只要是同一个值就是六抔黑（状元档），
+ * 所以任何**常量**回落值（比如 0.99）都会在脚本耗尽时凭空造出一个状元，
+ * 让「本局没有状元」这类用例随机翻车。
  */
 class ScriptRng {
   private queue: number[] = [];
+  private cursor = 0;
 
-  constructor(private readonly fallback = 0.99) {}
+  constructor(private readonly fallback: number[] = D_NONE) {}
 
-  next = (): number =>
-    this.queue.length > 0 ? (this.queue.shift() as number) : this.fallback;
+  next = (): number => {
+    if (this.queue.length > 0) return this.queue.shift() as number;
+    const value = this.fallback[this.cursor % this.fallback.length] as number;
+    this.cursor += 1;
+    return value;
+  };
 
   push(...values: number[]): void {
     this.queue.push(...values);
@@ -63,7 +76,41 @@ class ScriptRng {
 
   clear(): void {
     this.queue = [];
+    this.cursor = 0;
   }
+}
+
+/**
+ * 一副「最后一搏」的小牌：指定的那一样只剩 1 份，其余普通饼全空。
+ *
+ * 用它开局，几步之内就能博到饼尽 —— 收席这条路径在默认牌（57 份、约 125 掷）
+ * 上要跑好几分钟，在这里只要 4 掷，走的却是同一条闸门。
+ *
+ * 状元仍是 1 份：它不参与收席闸门（见 config/prizes.ts 的 ENDING_PRIZE_KEYS）。
+ */
+function lastPieceInventory(key: EndingPrizeKey = 'TWO_LIFT'): InventoryState {
+  const counts = { ONE_SHOW: 0, TWO_LIFT: 0, THREE_RED: 0, FOUR_ADVANCE: 0, DUITANG: 0, CHAMPION: 1 };
+  counts[key] = 1;
+  return { counts: { ...counts }, initial: { ...counts } };
+}
+
+/**
+ * 4 人局打完一局小牌，正好 4 掷：
+ *
+ *   座位 1 博出状元（四点红）→ 追状元开跑 →
+ *   座位 2、3 都没博过 → 座位 4 追的同时博走了最后一份饼 →
+ *   追完一轮回到普通回合，闸门立刻收席。
+ *
+ * 最后这一掷刻意安排在**追状元期间**：它同时验证了
+ * 「追完回到普通回合」与「回到普通回合时饼尽即收席」这两条路径的接缝。
+ */
+function playOneGame(h: Harness): RollRecord[] {
+  return [
+    playTurn(h, D_FOUR_FOUR),
+    playTurn(h, D_NONE),
+    playTurn(h, D_NONE),
+    playTurn(h, D_TWO_LIFT),
+  ];
 }
 
 interface TestPlayer {
@@ -84,9 +131,9 @@ interface Harness {
   guestSeq: number;
 }
 
-function createHarness(): Harness {
+function createHarness(opts: { inventory?: InventoryState } = {}): Harness {
   const clock = new FakeClock();
-  const rng = new ScriptRng(0.99);
+  const rng = new ScriptRng();
   const events: EngineEvent[] = [];
   const engine = new GameEngine({
     clock,
@@ -94,6 +141,8 @@ function createHarness(): Harness {
     emit: (batch) => {
       events.push(...batch);
     },
+    // 不传就是正常发牌（一桌 57 份）；传了就用这副小牌，几步就能博到饼尽
+    ...(opts.inventory ? { inventoryFor: () => structuredClone(opts.inventory!) } : {}),
   });
   return { engine, clock, rng, events, players: [], actions: 0, guestSeq: 0 };
 }
@@ -140,7 +189,7 @@ function currentPlayerId(h: Harness): string {
 /**
  * 以指定骰子完成当前回合，但**不推进时钟**。
  * 需要观察「开奖刚结束、下一回合还没开始」那一刻的快照时用它。
- * 传空数组表示不预设骰子，交由 rng 的回落值决定（用于保底等路径）。
+ * 传空数组表示不预设骰子，交由 rng 的回落值决定（回落是循环的 D_NONE，即「无奖」）。
  */
 function rollOnly(h: Harness, dice: number[] = D_NONE): RollRecord {
   h.rng.push(...dice);
@@ -528,8 +577,7 @@ describe('奖品与积分', () => {
     expect(scoreOf(h, roll.playerId)).toBe(5);
 
     const snap = h.engine.snapshot();
-    expect(snap.inventory.counts.THREE_RED).toBe(4 - 1);
-    expect(snap.inventory.initial.THREE_RED).toBe(4);
+    expect(snap.inventory.counts.THREE_RED).toBe(snap.inventory.initial.THREE_RED - 1);
     expect(snap.players.find((p) => p.id === roll.playerId)?.prizes.THREE_RED).toBe(1);
   });
 
@@ -543,7 +591,7 @@ describe('奖品与积分', () => {
   });
 
   it('库存为 0 时骰型照常显示，但不发奖不加分', () => {
-    // 4 人局三红库存正好 4 个，一圈领完之后就没了
+    // 一桌三红只有 4 份（配货按概率算出来的，见 config/prizes.ts），一圈领完就没了
     for (let i = 0; i < 4; i += 1) playTurn(h, D_THREE_RED);
     expect(h.engine.snapshot().inventory.counts.THREE_RED).toBe(0);
 
@@ -577,10 +625,14 @@ describe('奖品与积分', () => {
     playTurn(h, D_TWO_LIFT);
     playTurn(h, D_DUITANG);
     playTurn(h, D_NONE);
-    const inv = h.engine.snapshot().inventory.counts;
-    expect(inv.ONE_SHOW).toBe(4 * 4 - 1);
-    expect(inv.TWO_LIFT).toBe(2 * 4 - 1);
-    expect(inv.DUITANG).toBe(1 - 1);
+    const snap = h.engine.snapshot();
+    const inv = snap.inventory.counts;
+    const before = snap.inventory.initial;
+    expect(inv.ONE_SHOW).toBe(before.ONE_SHOW - 1);
+    expect(inv.TWO_LIFT).toBe(before.TWO_LIFT - 1);
+    expect(inv.DUITANG).toBe(before.DUITANG - 1);
+    // 没碰过的那样一动不动
+    expect(inv.THREE_RED).toBe(before.THREE_RED);
   });
 
   it('每一位玩家各自累计自己的奖品与积分', () => {
@@ -673,55 +725,102 @@ describe('追状元', () => {
     expect(h.engine.snapshot().champion.rank).toBe(2);
   });
 
-  it('最后一位挑战者仍然可以反超', () => {
+  it('最后一位挑战者仍然可以反超，追完回到普通回合', () => {
     playTurn(h, D_FOUR_FOUR); // 座位 1 成为状元
     playTurn(h, D_NONE); // 座位 2 追不上
     playTurn(h, D_NONE); // 座位 3 追不上
     const last = playTurn(h, D_SIX_FOUR); // 座位 4，最后一位 —— 六杯红 rank 6
     expect(last.replacedChampion).toBe(true);
-    expect(h.engine.snapshot().phase).toBe('FINISHED');
-    expect(h.engine.snapshot().result?.finalChampionId).toBe(last.playerId);
-    expect(h.engine.snapshot().result?.championAwardId).toBe('SIX_FOUR');
-    expect(h.engine.snapshot().result?.championBaseScore).toBe(100);
+
+    const snap = h.engine.snapshot();
+    expect(snap.champion.playerId).toBe(last.playerId);
+    expect(snap.champion.rank).toBe(6);
+    expect(snap.stats.championReplacements).toBe(1);
   });
 
-  it('只追一圈：N-1 位各追一次后立即结算', () => {
-    playTurn(h, D_FOUR_FOUR); // 1 次 + 3 位挑战者
+  it('只追一圈：N-1 位各追一次后回到普通回合，不是直接收席', () => {
+    const champion = playTurn(h, D_FOUR_FOUR); // 1 次 + 3 位挑战者
     playTurn(h, D_NONE);
     playTurn(h, D_NONE);
     playTurn(h, D_NONE);
     const snap = h.engine.snapshot();
-    expect(snap.phase).toBe('FINISHED');
-    expect(snap.currentTurn).toBeNull();
+    expect(snap.phase).toBe('NORMAL_TURN');
+    expect(snap.result).toBeNull();
     expect(snap.champion.chaseQueue).toHaveLength(0);
     expect(snap.champion.chaseDone).toBe(3);
     expect(snap.stats.totalRolls).toBe(4);
+    // 队列止于状元的前一位，所以下一位正好回到状元本人，接着博
+    expect(snap.currentTurn?.playerId).toBe(champion.playerId);
+    expect(snap.currentTurn?.kind).toBe('NORMAL');
+    // 状元奖要等收席才发，此刻还封在库存里
+    expect(snap.inventory.counts.CHAMPION).toBe(1);
+    expect(snap.players.some((p) => p.prizes.CHAMPION !== undefined)).toBe(false);
   });
 
-  it('追状元阶段关闭月华加持，normalRollCount 不再增长', () => {
-    playTurn(h, D_FOUR_FOUR);
-    expect(h.engine.inspect().normalRollCount).toBe(1);
-    playTurn(h, D_NONE);
-    playTurn(h, D_NONE);
-    playTurn(h, D_NONE);
-    expect(h.engine.inspect().normalRollCount).toBe(1);
-    expect(h.engine.snapshot().stats.blessedRolls).toBe(0);
-  });
-
-  it('追状元阶段掷出的骰子纯随机，不经过任何干预', () => {
+  it('追状元阶段掷出的骰子与普通回合完全一样（都是纯随机）', () => {
     playTurn(h, D_FOUR_FOUR);
     const chase = playTurn(h, D_DUITANG);
     expect(chase.kind).toBe('CHASE');
-    expect(chase.blessed).toBe(false);
-    expect(chase.guaranteed).toBe(false);
     expect(chase.dice).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(chase.awardId).toBe('DUITANG');
   });
 
-  it('状元确认后月华机制关闭', () => {
-    playTurn(h, D_FOUR_FOUR);
-    const view = h.engine.snapshot().moonBlessing;
-    expect(view.stage).toBe('DONE');
-    expect(view.progress).toBe(1);
+  it('普通回合里只有刷新榜首才开新一轮追状元', () => {
+    // 座位 1 先以五子登科（rank 2）坐庄，追完一轮回到普通回合
+    const first = playTurn(h, D_FIVE_SCHOLAR);
+    playTurn(h, D_NONE); // 座位 2 追
+    playTurn(h, D_NONE); // 座位 3
+    playTurn(h, D_NONE); // 座位 4 —— 追完，回到普通回合
+    expect(h.engine.snapshot().phase).toBe('NORMAL_TURN');
+
+    // 座位 1 博出一个**更低**的状元档：不开新一轮、榜首不改
+    const lower = playTurn(h, D_FOUR_FOUR); // rank 1 < 2
+    expect(lower.isChampionTier).toBe(true);
+    expect(lower.replacedChampion).toBe(false);
+    expect(lower.becameFirstChampion).toBe(false);
+    let snap = h.engine.snapshot();
+    expect(snap.phase).toBe('NORMAL_TURN');
+    expect(snap.champion.playerId).toBe(first.playerId);
+    expect(snap.champion.rank).toBe(2);
+    expect(snap.stats.championReplacements).toBe(0);
+    expect(snap.stats.firstChampionRollIndex).toBe(1);
+
+    // 转一圈回到座位 1，这次博出一个**更高**的：夺榜 + 重新开一轮追状元
+    playTurn(h, D_NONE); // 座位 2
+    playTurn(h, D_NONE); // 座位 3
+    playTurn(h, D_NONE); // 座位 4
+    // 用 rollOnly：推进时钟会把第一位挑战者从队列里取走，就看不到 N-1 这个整队了
+    const higher = rollOnly(h, D_SIX_FOUR); // 座位 1，六杯红 rank 6
+
+    expect(higher.replacedChampion).toBe(true);
+    snap = h.engine.snapshot();
+    expect(snap.phase).toBe('CHAMPION_CHASE');
+    expect(snap.champion.playerId).toBe(higher.playerId);
+    expect(snap.champion.rank).toBe(6);
+    expect(snap.champion.chaseTotal).toBe(3);
+    expect(snap.champion.chaseDone).toBe(0);
+    expect(snap.champion.chaseQueue).toHaveLength(3);
+    expect(snap.champion.chaseQueue).not.toContain(higher.playerId);
+    expect(snap.stats.championReplacements).toBe(1);
+    expect(snap.stats.firstChampionRollIndex).toBe(1); // 首位状元仍然是第 1 掷
+    advance(h);
+  });
+
+  it('追状元途中易主只夺榜，不会嵌套开一轮新的', () => {
+    const first = playTurn(h, D_FOUR_FOUR); // 座位 1，rank 1
+    const second = rollOnly(h, D_FIVE_SCHOLAR); // 座位 2 追状元时反超，rank 2
+
+    const snap = h.engine.snapshot();
+    expect(second.replacedChampion).toBe(true);
+    expect(snap.champion.playerId).toBe(second.playerId);
+    // 队列还是首状元建的那一条（[2,3,4]，座位 2 已经出队），只是换了个人坐庄。
+    // 如果易主时重建成了「从新状元的下家开始、再把新状元排除掉」，
+    // 这里会变成 [3,4,1] —— 长度 3、且含着座位 1。
+    expect(snap.champion.chaseQueue).toEqual([h.players[2]!.id, h.players[3]!.id]);
+    expect(snap.champion.chaseQueue).not.toContain(first.playerId);
+    expect(snap.champion.chaseTotal).toBe(3);
+    expect(snap.champion.chaseDone).toBe(1);
+    advance(h);
   });
 });
 
@@ -732,38 +831,35 @@ describe('追状元', () => {
 describe('结算与最终状元', () => {
   let h: Harness;
   beforeEach(() => {
-    h = createHarness();
+    h = createHarness({ inventory: lastPieceInventory() });
     fill(h, 4);
     startGame(h);
   });
 
   it('状元奖只发一次，且正好 +100 分', () => {
-    const champion = playTurn(h, D_FOUR_FOUR);
-    playTurn(h, D_NONE);
-    playTurn(h, D_NONE);
-    playTurn(h, D_NONE);
+    const [champion] = playOneGame(h);
 
     const snap = h.engine.snapshot();
     expect(snap.phase).toBe('FINISHED');
-    // 四点红基础 30 + 状元奖励 100
-    expect(scoreOf(h, champion.playerId)).toBe(130);
-    expect(snap.players.find((p) => p.id === champion.playerId)?.prizes.CHAMPION).toBe(1);
+    // 四点红基础 30 + 状元奖励 100（最后那一份饼是座位 4 博走的，不进状元的分）
+    expect(scoreOf(h, champion!.playerId)).toBe(130);
+    expect(snap.players.find((p) => p.id === champion!.playerId)?.prizes.CHAMPION).toBe(1);
     expect(snap.inventory.counts.CHAMPION).toBe(0);
     expect(h.engine.inspect().championPrizeGranted).toBe(true);
   });
 
   it('结算结果包含完整榜单与状元信息', () => {
-    const champion = playTurn(h, D_FOUR_FOUR);
-    playTurn(h, D_THREE_RED);
-    playTurn(h, D_TWO_LIFT);
-    playTurn(h, D_NONE);
+    const [champion] = playOneGame(h);
 
     const result = h.engine.snapshot().result;
     expect(result).not.toBeNull();
-    expect(result!.finalChampionId).toBe(champion.playerId);
-    expect(result!.championBaseScore).toBe(30);
-    expect(result!.championBonus).toBe(100);
-    expect(result!.championDice).toEqual([4, 4, 4, 4, 2, 6]);
+    expect(result!.champion).not.toBeNull();
+    expect(result!.champion!.playerId).toBe(champion!.playerId);
+    expect(result!.champion!.awardId).toBe('FOUR_FOUR');
+    expect(result!.champion!.baseScore).toBe(30);
+    expect(result!.champion!.bonus).toBe(100);
+    expect(result!.champion!.dice).toEqual([4, 4, 4, 4, 2, 6]);
+    expect(result!.endReason).toBe('INVENTORY_EMPTY');
     expect(result!.ranking).toHaveLength(4);
     // 榜单按积分降序
     const scores = result!.ranking.map((r) => r.score);
@@ -773,15 +869,16 @@ describe('结算与最终状元', () => {
   });
 
   it('换人之后由最终状元拿奖，被替换者一分不得', () => {
-    const first = playTurn(h, D_FOUR_FOUR); // rank 1
-    const second = playTurn(h, D_FIVE_SCHOLAR); // rank 2 反超
-    playTurn(h, D_NONE);
-    playTurn(h, D_NONE);
+    const first = playTurn(h, D_FOUR_FOUR); // 座位 1，rank 1
+    const second = playTurn(h, D_FIVE_SCHOLAR); // 座位 2 反超，rank 2
+    playTurn(h, D_NONE); // 座位 3
+    playTurn(h, D_TWO_LIFT); // 座位 4 追状元的同时博走最后一份饼 → 收席
 
     const snap = h.engine.snapshot();
+    expect(snap.phase).toBe('FINISHED');
     const result = snap.result!;
-    expect(result.finalChampionId).toBe(second.playerId);
-    expect(result.championAwardId).toBe('FIVE_SCHOLAR');
+    expect(result.champion!.playerId).toBe(second.playerId);
+    expect(result.champion!.awardId).toBe('FIVE_SCHOLAR');
     // 五子登科基础 40 + 100
     expect(scoreOf(h, second.playerId)).toBe(140);
     // 首位状元（四点红）在掷出时就是延后状态，被反超后什么也拿不到
@@ -792,10 +889,7 @@ describe('结算与最终状元', () => {
   });
 
   it('状元奖在整个房间生命周期内只发一次（重复结算也不会翻倍）', () => {
-    playTurn(h, D_FOUR_FOUR);
-    playTurn(h, D_NONE);
-    playTurn(h, D_NONE);
-    playTurn(h, D_NONE);
+    playOneGame(h);
     const scoreAfterFinish = Math.max(...h.engine.snapshot().players.map((p) => p.score));
 
     // 再推进很久，不应该有任何新的发奖
@@ -805,18 +899,12 @@ describe('结算与最终状元', () => {
   });
 
   it('本局用时被记录下来', () => {
-    playTurn(h, D_FOUR_FOUR);
-    playTurn(h, D_NONE);
-    playTurn(h, D_NONE);
-    playTurn(h, D_NONE);
+    playOneGame(h);
     expect(h.engine.snapshot().stats.durationMs).toBeGreaterThan(0);
   });
 
   it('游戏结束后再博饼会被拒绝', () => {
-    playTurn(h, D_FOUR_FOUR);
-    playTurn(h, D_NONE);
-    playTurn(h, D_NONE);
-    playTurn(h, D_NONE);
+    playOneGame(h);
     expect(h.engine.snapshot().phase).toBe('FINISHED');
     const somePlayer = h.players[0]!;
     expectFail(h.engine.roll(somePlayer.id, 'turn_000001', 'act'), 'GAME_FINISHED');
@@ -824,102 +912,111 @@ describe('结算与最终状元', () => {
 });
 
 /* ------------------------------------------------------------------ *
- * 6. 保底
+ * 6. 博到饼尽
  * ------------------------------------------------------------------ */
 
-describe('保底', () => {
-  it(`最少人数局最多 ${CHAMPION_GUARANTEE_ROUND}N 次之内必定出现首位状元`, () => {
-    const h = createHarness();
-    fill(h, MIN_PLAYERS);
+describe('博到饼尽', () => {
+  it('五样普通饼博完就收席，一个状元都没有也是正常结局', () => {
+    const h = createHarness({ inventory: lastPieceInventory() });
+    fill(h, 4);
     startGame(h);
 
-    const guaranteeAt = guaranteeRollNumber(MIN_PLAYERS); // 10
-    for (let i = 1; i < guaranteeAt; i += 1) {
-      const roll = playTurn(h, D_NONE);
-      expect(roll.isChampionTier).toBe(false);
+    // 前三掷全是无奖，谁也没碰上那最后一份饼
+    for (let i = 0; i < 3; i += 1) {
+      expect(playTurn(h, D_NONE).awardId).toBe('NONE');
+      expect(h.engine.snapshot().phase).toBe('NORMAL_TURN');
     }
-    expect(h.engine.snapshot().phase).toBe('NORMAL_TURN');
-    expect(h.engine.snapshot().champion.playerId).toBeNull();
+    const last = playTurn(h, D_TWO_LIFT);
 
-    // 第 10 次：无条件保底。传空数组表示不预设骰子 —— 队列为空时 rng 回落到 0.99，
-    // 按权重抽到最顶级的状元插金花，结果依然完全确定。
-    playTurn(h, []);
     const snap = h.engine.snapshot();
-    expect(snap.phase).toBe('CHAMPION_CHASE');
-    expect(snap.champion.playerId).not.toBeNull();
-    expect(snap.stats.firstChampionRollIndex).toBe(guaranteeAt);
-    expect(snap.stats.firstChampionRollIndex!).toBeLessThanOrEqual(CHAMPION_GUARANTEE_ROUND * MIN_PLAYERS);
-    expect(snap.champion.awardId).toBe('CHAMPION_FLOWER');
+    expect(last.prizeGranted).toBe(true);
+    expect(last.scoreGained).toBe(2);
+    expect(snap.phase).toBe('FINISHED');
+    expect(snap.currentTurn).toBeNull();
+
+    const result = snap.result!;
+    expect(result).not.toBeNull();
+    expect(result.champion).toBeNull();
+    expect(result.endReason).toBe('INVENTORY_EMPTY');
+    // 五样普通饼全空，状元原封不动留在桌上
+    for (const key of ENDING_PRIZE_KEYS) expect(snap.inventory.counts[key]).toBe(0);
+    expect(snap.inventory.counts.CHAMPION).toBe(1);
+    // 谁也不是状元，谁也拿不到状元奖
+    expect(result.ranking).toHaveLength(4);
+    expect(result.ranking.every((e) => !e.isFinalChampion)).toBe(true);
+    expect(snap.players.every((p) => p.prizes.CHAMPION === undefined)).toBe(true);
+    expect(snap.champion.playerId).toBeNull();
+    expect(snap.champion.finalPlayerId).toBeNull();
+    expect(snap.stats.firstChampionRollIndex).toBeNull();
     h.engine.dispose();
   });
 
-  it(`${MAX_PLAYERS} 人局最多 ${CHAMPION_GUARANTEE_ROUND * MAX_PLAYERS} 次之内必定出现首位状元`, () => {
-    const h = createHarness();
-    fill(h, MAX_PLAYERS);
+  it('状元与饼尽自洽：有状元就发出那 1 份，没状元就原封留着', () => {
+    // 有状元的一局
+    const withChampion = createHarness({ inventory: lastPieceInventory() });
+    fill(withChampion, 4);
+    startGame(withChampion);
+    playOneGame(withChampion);
+
+    const a = withChampion.engine.snapshot();
+    expect(a.phase).toBe('FINISHED');
+    expect(a.inventory.initial.CHAMPION).toBe(1);
+    expect(a.inventory.counts.CHAMPION).toBe(0);
+    expect(a.result!.champion).not.toBeNull();
+    const crowned = a.result!.ranking.filter((e) => e.isFinalChampion);
+    expect(crowned).toHaveLength(1);
+    expect(crowned[0]!.playerId).toBe(a.result!.champion!.playerId);
+    expect(a.players.find((p) => p.id === crowned[0]!.playerId)?.prizes.CHAMPION).toBe(1);
+    withChampion.engine.dispose();
+
+    // 没有状元的一局
+    const noChampion = createHarness({ inventory: lastPieceInventory() });
+    fill(noChampion, 4);
+    startGame(noChampion);
+    playTurn(noChampion, D_NONE);
+    playTurn(noChampion, D_NONE);
+    playTurn(noChampion, D_NONE);
+    playTurn(noChampion, D_TWO_LIFT);
+
+    const b = noChampion.engine.snapshot();
+    expect(b.phase).toBe('FINISHED');
+    expect(b.inventory.initial.CHAMPION).toBe(1);
+    expect(b.inventory.counts.CHAMPION).toBe(1);
+    expect(b.result!.champion).toBeNull();
+    expect(b.result!.ranking.every((e) => !e.isFinalChampion)).toBe(true);
+    expect(b.players.every((p) => p.prizes.CHAMPION === undefined)).toBe(true);
+    noChampion.engine.dispose();
+  });
+
+  it('饼尽闸门只看五样普通饼，最后一份饼在追状元期间被博走也一样收席', () => {
+    // 这正是 playOneGame 的形状：收席由追状元队列里的最后一位触发，
+    // 他博走的瞬间 phase 还是 CHAMPION_CHASE —— 闸门要在回到普通回合之后立刻生效。
+    const h = createHarness({ inventory: lastPieceInventory() });
+    fill(h, 4);
     startGame(h);
+    const rolls = playOneGame(h);
 
-    const guaranteeAt = guaranteeRollNumber(MAX_PLAYERS); // 75
-    for (let i = 1; i < guaranteeAt; i += 1) playTurn(h, D_NONE);
-    expect(h.engine.snapshot().champion.playerId).toBeNull();
+    expect(rolls[3]!.kind).toBe('CHASE');
+    expect(rolls[3]!.prizeKey).toBe('TWO_LIFT');
+    expect(h.engine.snapshot().phase).toBe('FINISHED');
+    expect(h.engine.snapshot().result!.endReason).toBe('INVENTORY_EMPTY');
+    h.engine.dispose();
+  });
 
-    playTurn(h, []);
+  it('还没博完就不会收席 —— 默认的一桌 57 份要走很久', () => {
+    const h = createHarness();
+    fill(h, 4);
+    startGame(h);
+    // 一秀 31 份，博掉 8 份还远远没完
+    for (let i = 0; i < 8; i += 1) playTurn(h, D_ONE_SHOW);
     const snap = h.engine.snapshot();
-    expect(snap.phase).toBe('CHAMPION_CHASE');
-    expect(snap.stats.firstChampionRollIndex).toBe(guaranteeAt);
-    h.engine.dispose();
-  });
-
-  it('第一轮完全随机，不会加持（IDLE 且 blessedRolls 为 0）', () => {
-    const h = createHarness();
-    fill(h, MIN_PLAYERS);
-    startGame(h);
-
-    for (let i = 0; i < MIN_PLAYERS; i += 1) {
-      const roll = playTurn(h, D_NONE);
-      expect(roll.blessed).toBe(false);
-      expect(roll.guaranteed).toBe(false);
-      if (i < MIN_PLAYERS - 1) {
-        expect(h.engine.snapshot().moonBlessing.stage).toBe('IDLE');
-      }
-    }
-    expect(h.engine.snapshot().stats.blessedRolls).toBe(0);
-    // 第一轮走完，月亮开始蓄力
-    expect(h.engine.snapshot().moonBlessing.stage).toBe('CHARGING');
-    h.engine.dispose();
-  });
-
-  it('月华值随掷骰推进而增长，临近保底时会提示「状元将至」', () => {
-    const h = createHarness();
-    fill(h, MIN_PLAYERS);
-    startGame(h);
-
-    const progress: number[] = [];
-    for (let i = 1; i < guaranteeRollNumber(MIN_PLAYERS); i += 1) {
-      playTurn(h, D_NONE);
-      progress.push(h.engine.snapshot().moonBlessing.progress);
-    }
-    for (let i = 1; i < progress.length; i += 1) {
-      expect(progress[i]!).toBeGreaterThanOrEqual(progress[i - 1]!);
-    }
-    const near = h.engine.snapshot().moonBlessing;
-    expect(near.nearGuarantee).toBe(true);
-    expect(near.stage).toBe('FULL');
-    h.engine.dispose();
-  });
-
-  it('任何阶段下发的月华文案都不含明示保底的字眼', () => {
-    const h = createHarness();
-    fill(h, MIN_PLAYERS);
-    startGame(h);
-    const banned = ['必出', '必中', '保证', '一定', '必定'];
-    for (let i = 0; i < guaranteeRollNumber(MIN_PLAYERS) - 1; i += 1) {
-      const text = h.engine.snapshot().moonBlessing.text;
-      for (const word of banned) expect(text).not.toContain(word);
-      playTurn(h, D_NONE);
-    }
-    for (const word of banned) {
-      expect(h.engine.snapshot().moonBlessing.text).not.toContain(word);
-    }
+    expect(snap.phase).toBe('NORMAL_TURN');
+    expect(snap.result).toBeNull();
+    expect(snap.inventory.counts.ONE_SHOW).toBe(buildInventory().counts.ONE_SHOW - 8);
+    expect(snap.inventory.counts).toEqual({
+      ...buildInventory().counts,
+      ONE_SHOW: buildInventory().counts.ONE_SHOW - 8,
+    });
     h.engine.dispose();
   });
 });
@@ -929,14 +1026,15 @@ describe('保底', () => {
  * ------------------------------------------------------------------ */
 
 describe('再来一局', () => {
+  /** 2 人局打完一局小牌：座位 1 坐庄，座位 2 追状元时博走最后一份饼。 */
   function finishOneGame(h: Harness): void {
     playTurn(h, D_FOUR_FOUR);
-    for (let i = 0; i < MIN_PLAYERS - 1; i += 1) playTurn(h, D_NONE);
+    playTurn(h, D_TWO_LIFT);
     expect(h.engine.snapshot().phase).toBe('FINISHED');
   }
 
   it('非房主不能开启新的一局', () => {
-    const h = createHarness();
+    const h = createHarness({ inventory: lastPieceInventory() });
     fill(h, MIN_PLAYERS);
     startGame(h);
     finishOneGame(h);
@@ -946,7 +1044,7 @@ describe('再来一局', () => {
   });
 
   it('还没结束的时候不能重开', () => {
-    const h = createHarness();
+    const h = createHarness({ inventory: lastPieceInventory() });
     fill(h, MIN_PLAYERS);
     startGame(h);
     expectFail(h.engine.restart(hostId(h)), 'GAME_ALREADY_STARTED');
@@ -954,7 +1052,7 @@ describe('再来一局', () => {
   });
 
   it('重开后积分与奖品清零、库存重置、座位与昵称保留', () => {
-    const h = createHarness();
+    const h = createHarness({ inventory: lastPieceInventory() });
     fill(h, MIN_PLAYERS);
     startGame(h);
     finishOneGame(h);
@@ -972,7 +1070,10 @@ describe('再来一局', () => {
     expect(after.currentTurn).toBeNull();
     expect(after.champion.playerId).toBeNull();
     expect(after.stats.totalRolls).toBe(0);
+    // 空桌必须是字面量的全零，不能是「配货后的最小值」——
+    // 配货有 max(1, …) 下限，复用的话台面会清不干净。
     expect(after.inventory.counts.ONE_SHOW).toBe(0);
+    expect(after.inventory.counts.CHAMPION).toBe(0);
     for (const p of after.players) {
       expect(p.score).toBe(0);
       expect(p.prizes).toEqual({});
@@ -985,7 +1086,7 @@ describe('再来一局', () => {
   });
 
   it('重开后可以立刻再开一局，且能正常发奖', () => {
-    const h = createHarness();
+    const h = createHarness({ inventory: lastPieceInventory() });
     fill(h, MIN_PLAYERS);
     startGame(h);
     finishOneGame(h);
@@ -993,21 +1094,25 @@ describe('再来一局', () => {
     startGame(h);
 
     expect(h.engine.snapshot().phase).toBe('NORMAL_TURN');
-    expect(h.engine.snapshot().inventory.counts.ONE_SHOW).toBe(4 * MIN_PLAYERS);
-    const roll = playTurn(h, D_DUITANG);
-    expect(roll.scoreGained).toBe(15);
+    // 牌重新发过一副，与开局时一模一样
+    expect(h.engine.snapshot().inventory.counts).toEqual(lastPieceInventory().counts);
+    const roll = playTurn(h, D_TWO_LIFT);
+    expect(roll.prizeGranted).toBe(true);
+    expect(roll.scoreGained).toBe(2);
     h.engine.dispose();
   });
 
   it('第二局的 turnId 不会和第一局撞车', () => {
-    const h = createHarness();
+    const h = createHarness({ inventory: lastPieceInventory() });
     fill(h, MIN_PLAYERS);
     startGame(h);
     const firstGameTurnIds = new Set<string>();
-    for (let i = 0; i < 3; i += 1) {
+    for (let i = 0; i < 2; i += 1) {
       firstGameTurnIds.add(h.engine.snapshot().currentTurn!.turnId);
       playTurn(h, D_NONE);
     }
+    // 又轮到座位 1，把这一局打完
+    firstGameTurnIds.add(h.engine.snapshot().currentTurn!.turnId);
     finishOneGame(h);
     h.engine.restart(hostId(h));
     startGame(h);
@@ -1134,10 +1239,12 @@ describe('快照契约', () => {
     expect(res.ok).toBe(true);
     if (res.ok) {
       const me = res.data.snapshot.players.find((p) => p.id === target.id)!;
+      const inv = res.data.snapshot.inventory;
       expect(me.score).toBe(5);
       expect(me.prizes.THREE_RED).toBe(1);
       expect(res.data.snapshot.phase).toBe('NORMAL_TURN');
-      expect(res.data.snapshot.inventory.counts.THREE_RED).toBe(MIN_PLAYERS - 1);
+      expect(res.data.snapshot.result).toBeNull();
+      expect(inv.counts.THREE_RED).toBe(inv.initial.THREE_RED - 1);
     }
     h.engine.dispose();
   });
@@ -1242,7 +1349,7 @@ describe('散场回收', () => {
     startGame(h);
     const started = h.engine.snapshot();
     expect(started.phase).toBe('NORMAL_TURN');
-    expect(started.inventory.counts.ONE_SHOW).toBe(4 * MIN_PLAYERS);
+    expect(started.inventory.counts).toEqual(buildInventory().counts);
     expect(started.stats.totalRolls).toBe(0);
     h.engine.dispose();
   });

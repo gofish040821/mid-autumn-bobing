@@ -169,7 +169,7 @@ export default function ChampionPanel({ snapshot, className }: ChampionPanelProp
 
       {!active && (
         <p className="cp__idleNote t-muted">
-          {nickname ? '追榜之礼，待鸣锣而启' : '状元未出，静候月满'}
+          {nickname ? '追榜之礼，待鸣锣而启' : '状元未出，饼还在博'}
         </p>
       )}
     </section>
