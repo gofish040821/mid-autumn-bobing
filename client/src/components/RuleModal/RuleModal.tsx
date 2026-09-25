@@ -35,9 +35,8 @@ const DICE_FACES: readonly string[] = ['一', '二', '三', '四', '五', '六']
 /**
  * 一桌饼的份数。
  *
- * 第一版这里是「4 × 人数」之类的公式，改成「份数 ∝ 判奖自然概率」之后
- * 已经没有一行写得下的公式了，于是改为**直接读服务端下发的开局库存**
- * （`snapshot.inventory.initial`）—— 说明和算法不可能再对不上。
+ * 份数**不在这里写死**，而是直接读服务端下发的开局库存
+ * （`snapshot.inventory.initial`）—— 说明和实际发牌不可能再对不上。
  * 开局前库存全是 0，此时返回 null，界面只显示奖品名、不显示份数。
  */
 function prizeCount(initial: InventoryState | null, key: PrizeKey): string | null {
@@ -288,9 +287,9 @@ export default function RuleModal(): JSX.Element {
                         })}
                       </ul>
                       <p className="rulemodal__note">
-                        一桌饼是定量的，人多人少都是这一张，份数与会饼人数无关。默认按传统会饼配货，
-                        房主开房时可自定义每样份数与积分。库存领完不补；同一等级再次博出时只显示骰型，
-                        不再发奖、不加分。
+                        一桌饼是定量的，人多人少都是这一张，份数与会饼人数无关。默认份数按传统会饼配
+                        （1 : 2 : 4 : 8 : 16 : 32），所以一秀最多、状元只有一个；房主开房时可自定义每样
+                        份数与积分。库存领完不补；同一等级再次博出时只显示骰型，不再发奖、不加分。
                       </p>
                     </section>
 

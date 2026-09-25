@@ -1,15 +1,49 @@
 /**
- * 一桌饼的配货。
- *
- * 默认按传统会饼固定配货：
+ * 一桌饼的配货 —— 传统会饼的经典份数，1 : 2 : 4 : 8 : 16 : 32。
  *
  *      一秀 32 · 二举 16 · 三红 4 · 四进 8 · 对堂 2 · 状元 1，共 63 份
  *
- * 状元只有一份；其余五类的份数可随开房配置（RoomConfig）覆盖。
- * 份数与人数无关：一张会饼是定量的，人多人少都是这一张。
+ * **这是一张人工定死的表，不是算出来的。**
+ *
+ * 早先的版本拿自然概率做比例（份数 ∝ 概率，概率由穷举 6^6 得出），
+ * 好处是五个普通池的期望清空时间都落在 65~85 掷，「谁都不是短板」。
+ * 换成传统份数就把那个性质丢掉了，现在是**四进一个人拖后腿**：
+ *
+ *     池     份数   自然概率   期望清空掷数
+ *     一秀    32    37.29%         86
+ *     二举    16    19.93%         80
+ *     三红     4     5.36%         75
+ *     四进     8     4.02%        199   ← 实测 72% 的局最后都在等它
+ *     对堂     2     1.54%        130
+ *     状元     1     1.20%         83
+ *
+ * 代价是局长度：实测中位约 9 分钟、p90 约 14 分钟，而且**没有上限**
+ * （旧配货中位约 4.8 分钟）。收益是这组份数就是传统会饼本来的样子，
+ * 玩家一眼认得。两边的详细实测见 README。
+ *
+ * **要调局长度，就改下面 PIECES 这一张表 —— 它是唯一的旋钮。**
+ *
+ * 五类普通奖品的份数可随开房配置（RoomConfig.counts）覆盖；状元全桌唯一，
+ * 数量恒为 1，不参与数量自定义。
  */
 import type { InventoryState, PrizeKey, RoomConfig } from '@bobing/shared';
-import { DEFAULT_PRIZE_COUNTS, PRIZE_KEYS } from '@bobing/shared';
+import { PRIZE_KEYS } from '@bobing/shared';
+
+/**
+ * 一桌饼的传统配货。
+ *
+ * 类型写成 `Record<PrizeKey, number>` 是**编译期断言**：将来给 PrizeKey
+ * 添了新奖池却忘了在这里配货，这一行立刻报错（少一个池子会让「博到饼尽」
+ * 这道闸门永远差一样没过零，牌局再也收不了席，而且要走完整局才看得出来）。
+ */
+const PIECES: Record<PrizeKey, number> = {
+  ONE_SHOW: 32,
+  TWO_LIFT: 16,
+  THREE_RED: 4,
+  FOUR_ADVANCE: 8,
+  DUITANG: 2,
+  CHAMPION: 1,
+};
 
 /**
  * 收口用的奖池：这五个池子全部博空，本局就结束。
@@ -39,13 +73,15 @@ export type EndingPrizeKey = (typeof ENDING_PRIZE_KEYS)[number];
 type MissingEndingPrizeKey = Exclude<PrizeKey, EndingPrizeKey | 'CHAMPION'>;
 export const ENDING_PRIZE_KEYS_IS_COMPLETE: MissingEndingPrizeKey extends never ? true : false = true;
 
+/** 一桌饼的默认配货，五类普通奖品份数可随 config 覆盖，状元恒 1。 */
 export function buildInventory(config?: RoomConfig): InventoryState {
+  // 展开成新对象：counts 是会被对局就地改的，不能让两个牌局共用一份 PIECES。
   const counts: Record<PrizeKey, number> = {
-    ONE_SHOW: config?.counts.ONE_SHOW ?? DEFAULT_PRIZE_COUNTS.ONE_SHOW,
-    TWO_LIFT: config?.counts.TWO_LIFT ?? DEFAULT_PRIZE_COUNTS.TWO_LIFT,
-    THREE_RED: config?.counts.THREE_RED ?? DEFAULT_PRIZE_COUNTS.THREE_RED,
-    FOUR_ADVANCE: config?.counts.FOUR_ADVANCE ?? DEFAULT_PRIZE_COUNTS.FOUR_ADVANCE,
-    DUITANG: config?.counts.DUITANG ?? DEFAULT_PRIZE_COUNTS.DUITANG,
+    ONE_SHOW: config?.counts.ONE_SHOW ?? PIECES.ONE_SHOW,
+    TWO_LIFT: config?.counts.TWO_LIFT ?? PIECES.TWO_LIFT,
+    THREE_RED: config?.counts.THREE_RED ?? PIECES.THREE_RED,
+    FOUR_ADVANCE: config?.counts.FOUR_ADVANCE ?? PIECES.FOUR_ADVANCE,
+    DUITANG: config?.counts.DUITANG ?? PIECES.DUITANG,
     CHAMPION: 1,
   };
   return { counts, initial: { ...counts } };
@@ -54,8 +90,8 @@ export function buildInventory(config?: RoomConfig): InventoryState {
 /**
  * 空桌：六样全部为 0。
  *
- * **必须写死全零，不能复用 buildInventory()。** 配货有 max(1, …) 下限，
- * 复用会让「空桌」返回一堆 1，重开之后库存清不干净。
+ * **必须写死全零，不能复用 buildInventory()。** 那样「空桌」会返回一整套
+ * 32/16/4/8/2/1 的配货，重开之后库存根本清不干净。
  */
 export function emptyInventory(): InventoryState {
   const counts = {} as Record<PrizeKey, number>;
