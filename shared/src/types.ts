@@ -169,10 +169,12 @@ export interface RollRecord {
   auto: boolean;
   /** NORMAL 或 CHASE */
   kind: TurnKind;
-  /** 是否在追状元阶段反超成为新状元 */
+  /** 是否从别人手里夺走了状元位（本人刷新自己的成绩不算） */
   replacedChampion: boolean;
   /** 是否为本局首位状元 */
   becameFirstChampion: boolean;
+  /** 是否由现任状元本人刷新了自己的成绩（以最后一次为准，不算易主） */
+  refreshedOwnChampion: boolean;
   at: number;
 }
 

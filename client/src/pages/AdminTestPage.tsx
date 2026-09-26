@@ -48,7 +48,8 @@ export default function AdminTestPage(): JSX.Element {
       prizeKey: award.prizeKey, prizeGranted: award.tier === 'NORMAL',
       inventoryExhausted: false, scoreGained: award.tier === 'NORMAL' ? award.score : 0,
       auto: false, kind: 'NORMAL', replacedChampion: false,
-      becameFirstChampion: award.tier === 'CHAMPION', at: Date.now(),
+      becameFirstChampion: award.tier === 'CHAMPION',
+      refreshedOwnChampion: false, at: Date.now(),
     });
     setRolling(animations);
     if (animations) {

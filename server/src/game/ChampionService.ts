@@ -45,6 +45,10 @@ export function buildChaseQueue(
  *
  * 两级都持平才不动，即同档同余数先出现者优先。
  *
+ * 例外：挑战者就是现任状元本人时（isIncumbent），**无条件换成他最后一次的成绩**——
+ * 他自己的状元以最后一次为准，哪怕比之前小（含档次降低）也会覆盖。
+ * 这属于「刷新自己的成绩」，不是易主，调用方不要计入易主次数。
+ *
  * `emptyChampionState().rank` 是 0，而所有 Champion Tier 的 rank 都 ≥ 1，
  * 于是「本局第一位状元」天然被同一条谓词覆盖，不需要额外的首中分支。
  */
@@ -53,7 +57,9 @@ export function shouldReplaceChampion(
   currentTiebreak: number,
   challengerRank: number,
   challengerTiebreak: number,
+  isIncumbent = false,
 ): boolean {
+  if (isIncumbent) return true;
   if (challengerRank !== currentRank) return challengerRank > currentRank;
   return challengerTiebreak > currentTiebreak;
 }

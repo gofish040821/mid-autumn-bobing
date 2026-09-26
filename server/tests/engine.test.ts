@@ -718,43 +718,88 @@ describe('追状元', () => {
     expect(snap.stats.championReplacements).toBe(0);
   });
 
-  it('同档状元再比剩余点数之和：余数大者反超，余数小者不能', () => {
-    // 座位 1 先以 444426（余 8）坐庄；追完一圈回到普通回合
+  it('同档不同人：余数大者反超，余数小者不能', () => {
+    // 座位 1 以 444426（余 8）坐庄，追状元队列 [2,3,4]
     const first = playTurn(h, D_FOUR_FOUR);
-    playTurn(h, D_NONE); // 座位 2 追
-    playTurn(h, D_NONE); // 座位 3
-    playTurn(h, D_NONE); // 座位 4
-    expect(h.engine.snapshot().phase).toBe('NORMAL_TURN');
+    expect(first.becameFirstChampion).toBe(true);
+    expect(h.engine.snapshot().champion.tiebreak).toBe(8);
 
-    // 座位 1 再博出同档但余数更大的 444456（余 11）：连自己都能反超
+    // 座位 2 追出 444456（余 11）：同为四点红，换了人、余数更大 → 反超
     const bigger = playTurn(h, D_FOUR_FOUR_BIG);
     expect(bigger.isChampionTier).toBe(true);
     expect(bigger.replacedChampion).toBe(true);
-    expect(bigger.becameFirstChampion).toBe(false);
-
     let snap = h.engine.snapshot();
-    expect(snap.champion.playerId).toBe(first.playerId);
+    expect(snap.champion.playerId).toBe(bigger.playerId);
     expect(snap.champion.rank).toBe(1);
     expect(snap.champion.tiebreak).toBe(11);
     expect(snap.champion.replacements).toBe(1);
     expect(snap.stats.championReplacements).toBe(1);
-    // 刷新了榜首，所以又开了一轮追状元
-    expect(snap.phase).toBe('CHAMPION_CHASE');
-    expect(snap.champion.chaseTotal).toBe(3);
-    expect(snap.champion.chaseDone).toBe(0);
 
-    // 再追完一圈，座位 1 这次博出余数更小的 444426（余 8）：不能反超
-    playTurn(h, D_NONE); // 座位 2
-    playTurn(h, D_NONE); // 座位 3
-    playTurn(h, D_NONE); // 座位 4
+    // 座位 3 追出 444426（余 8）：同为四点红，但余数更小 → 不能反超
     const smaller = playTurn(h, D_FOUR_FOUR);
     expect(smaller.isChampionTier).toBe(true);
     expect(smaller.replacedChampion).toBe(false);
-
     snap = h.engine.snapshot();
-    expect(snap.champion.playerId).toBe(first.playerId);
-    expect(snap.champion.tiebreak).toBe(11); // 仍是最高的那一次
+    expect(snap.champion.playerId).toBe(bigger.playerId);
+    expect(snap.champion.tiebreak).toBe(11);
     expect(snap.stats.championReplacements).toBe(1);
+
+    // 座位 4 追完，回到普通回合
+    playTurn(h, D_NONE);
+    expect(h.engine.snapshot().phase).toBe('NORMAL_TURN');
+  });
+
+  it('同一人再博状元以最后一次为准：更小也会覆盖自己', () => {
+    // 座位 1 以 444456（余 11）坐庄；追完一圈回到普通回合
+    const first = playTurn(h, D_FOUR_FOUR_BIG);
+    expect(first.becameFirstChampion).toBe(true);
+    expect(h.engine.snapshot().champion.tiebreak).toBe(11);
+
+    playTurn(h, D_NONE); // 座位 2 追
+    playTurn(h, D_NONE); // 座位 3
+    playTurn(h, D_NONE); // 座位 4
+    expect(h.engine.snapshot().phase).toBe('NORMAL_TURN');
+    // 追完一圈后下一位正好回到状元本人
+    expect(currentPlayerId(h)).toBe(first.playerId);
+
+    // 座位 1 再博出同档但余数更小的 444426（余 8）：本人 → 换成最后一次
+    const again = playTurn(h, D_FOUR_FOUR);
+    expect(again.isChampionTier).toBe(true);
+    expect(again.refreshedOwnChampion).toBe(true);
+    expect(again.replacedChampion).toBe(false); // 不是易主，不弹「金榜易主」
+    expect(again.becameFirstChampion).toBe(false);
+
+    const snap = h.engine.snapshot();
+    expect(snap.champion.playerId).toBe(first.playerId);
+    expect(snap.champion.rank).toBe(1);
+    expect(snap.champion.tiebreak).toBe(8); // 最后一次的 8，而不是曾经最高的 11
+    expect(snap.champion.replacements).toBe(0); // 本人刷新不计易主
+    expect(snap.stats.championReplacements).toBe(0);
+    // 成绩变了就重开一轮，让对手按新的成绩重新追
+    expect(snap.phase).toBe('CHAMPION_CHASE');
+    expect(snap.champion.chaseTotal).toBe(3);
+    expect(snap.champion.chaseDone).toBe(0);
+  });
+
+  it('同一人再博更低档，状元位也跟着降级', () => {
+    // 座位 1 以五子登科（rank 2）坐庄，追完一圈回到普通回合
+    const first = playTurn(h, D_FIVE_SCHOLAR);
+    playTurn(h, D_NONE); // 座位 2 追
+    playTurn(h, D_NONE); // 座位 3
+    playTurn(h, D_NONE); // 座位 4
+    expect(h.engine.snapshot().phase).toBe('NORMAL_TURN');
+    expect(h.engine.snapshot().champion.rank).toBe(2);
+
+    // 座位 1 再博四点红（rank 1 < 2）：本人 → 降到 rank 1
+    const lower = playTurn(h, D_FOUR_FOUR);
+    expect(lower.isChampionTier).toBe(true);
+    expect(lower.refreshedOwnChampion).toBe(true);
+    expect(lower.replacedChampion).toBe(false);
+
+    const snap = h.engine.snapshot();
+    expect(snap.champion.playerId).toBe(first.playerId);
+    expect(snap.champion.rank).toBe(1);
+    expect(snap.stats.championReplacements).toBe(0);
   });
 
   it('更高等级可以反超，金榜易主', () => {
@@ -823,10 +868,14 @@ describe('追状元', () => {
     playTurn(h, D_NONE); // 座位 4 —— 追完，回到普通回合
     expect(h.engine.snapshot().phase).toBe('NORMAL_TURN');
 
-    // 座位 1 博出一个**更低**的状元档：不开新一轮、榜首不改
+    // 追完一圈后当前回合正好是状元本人，先让他博一个无奖把回合交给座位 2
+    playTurn(h, D_NONE); // 座位 1
+
+    // 座位 2 博出一个**更低**的状元档：不开新一轮、榜首不改
     const lower = playTurn(h, D_FOUR_FOUR); // rank 1 < 2
     expect(lower.isChampionTier).toBe(true);
     expect(lower.replacedChampion).toBe(false);
+    expect(lower.refreshedOwnChampion).toBe(false);
     expect(lower.becameFirstChampion).toBe(false);
     let snap = h.engine.snapshot();
     expect(snap.phase).toBe('NORMAL_TURN');
@@ -835,12 +884,12 @@ describe('追状元', () => {
     expect(snap.stats.championReplacements).toBe(0);
     expect(snap.stats.firstChampionRollIndex).toBe(1);
 
-    // 转一圈回到座位 1，这次博出一个**更高**的：夺榜 + 重新开一轮追状元
-    playTurn(h, D_NONE); // 座位 2
+    // 再转一圈回到座位 2，这次博出一个**更高**的：夺榜 + 重新开一轮追状元
     playTurn(h, D_NONE); // 座位 3
     playTurn(h, D_NONE); // 座位 4
+    playTurn(h, D_NONE); // 座位 1
     // 用 rollOnly：推进时钟会把第一位挑战者从队列里取走，就看不到 N-1 这个整队了
-    const higher = rollOnly(h, D_SIX_FOUR); // 座位 1，六杯红 rank 6
+    const higher = rollOnly(h, D_SIX_FOUR); // 座位 2，六杯红 rank 6
 
     expect(higher.replacedChampion).toBe(true);
     snap = h.engine.snapshot();

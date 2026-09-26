@@ -826,6 +826,7 @@ export class GameEngine {
       kind: isChase ? 'CHASE' : 'NORMAL',
       replacedChampion: false,
       becameFirstChampion: false,
+      refreshedOwnChampion: false,
       at: this.clock.now(),
     };
 
@@ -838,18 +839,23 @@ export class GameEngine {
     // 比较分两级：先比 championRank，同档再比「剩余点数之和」(tiebreak)。
     // 榜被刷新才换人、才开新一轮追状元；正在追状元时再易主只夺榜，
     // 队列原样保留（一轮追状元只开一次，不嵌套）。
+    //
+    // 唯一的例外是现任状元本人：他的成绩以最后一次为准，哪怕更小也覆盖
+    // （见 ChampionService.shouldReplaceChampion 的 isIncumbent）。
     let previousChampionNickname: string | null = null;
     let chaseOpened = false;
     if (award.tier === 'CHAMPION') {
       this.state.stats.firstChampionRollIndex ??= this.state.stats.totalRolls;
 
       const tiebreak = championTiebreak(award.id, dice);
+      const isIncumbent = this.state.champion.playerId === player.id;
       if (
         shouldReplaceChampion(
           this.state.champion.rank,
           this.state.champion.tiebreak,
           award.championRank,
           tiebreak,
+          isIncumbent,
         )
       ) {
         const isFirst = this.state.champion.playerId === null;
@@ -859,7 +865,9 @@ export class GameEngine {
 
         previousChampionNickname = isFirst ? null : this.state.champion.nickname;
         roll.becameFirstChampion = isFirst;
-        roll.replacedChampion = !isFirst;
+        // 本人刷新自己的成绩不是易主：既不算反超，也不该弹「金榜易主」
+        roll.refreshedOwnChampion = isIncumbent;
+        roll.replacedChampion = !isFirst && !isIncumbent;
 
         this.state.champion = {
           ...this.state.champion,
@@ -876,10 +884,14 @@ export class GameEngine {
             : this.state.champion.chaseQueue,
           chaseTotal: opensChase ? Math.max(0, playerCount - 1) : this.state.champion.chaseTotal,
           chaseDone: opensChase ? 0 : this.state.champion.chaseDone,
-          replacements: isFirst ? 0 : this.state.champion.replacements + 1,
+          // 只有被**别人**夺走才算一次易主，本人刷新自己的成绩不算
+          replacements:
+            isFirst || isIncumbent
+              ? this.state.champion.replacements
+              : this.state.champion.replacements + 1,
         };
         if (opensChase) this.state.phase = 'CHAMPION_CHASE';
-        if (!isFirst) this.state.stats.championReplacements += 1;
+        if (!isFirst && !isIncumbent) this.state.stats.championReplacements += 1;
       }
     }
 
@@ -933,6 +945,8 @@ export class GameEngine {
       this.log(`${roll.nickname}博出${award.name}（${diceToChinese(roll.dice)}）！`, 'champion');
       if (roll.becameFirstChampion) {
         this.log('首位状元出现，追状元开启。', 'champion');
+      } else if (roll.refreshedOwnChampion) {
+        this.log(`${roll.nickname}刷新了自己的状元成绩，以最后一次为准。`, 'champion');
       } else if (roll.replacedChampion) {
         this.log(`${roll.nickname}反超成为当前状元！`, 'champion');
       } else {

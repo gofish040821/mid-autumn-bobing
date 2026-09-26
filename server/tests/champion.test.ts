@@ -158,3 +158,27 @@ describe('shouldReplaceChampion · 反超判定', () => {
     }
   });
 });
+
+describe('shouldReplaceChampion · 现任状元本人以最后一次为准', () => {
+  const at = (rank: number, tiebreak = 0) => [rank, tiebreak] as const;
+
+  it('本人再博状元无条件覆盖：同档更小的余数也算数', () => {
+    // 444456（余 11）之后再博 444426（余 8）—— 换成最后一次的 8
+    expect(shouldReplaceChampion(...at(1, 11), ...at(1, 8), true)).toBe(true);
+    expect(shouldReplaceChampion(...at(1, 8), ...at(1, 3), true)).toBe(true);
+  });
+
+  it('本人再博更低档也会覆盖：状元位跟着降级', () => {
+    expect(shouldReplaceChampion(...at(2, 6), ...at(1, 2), true)).toBe(true);
+    expect(shouldReplaceChampion(...at(6, 0), ...at(1, 0), true)).toBe(true);
+  });
+
+  it('同样的成绩换个人来博就不成立，说明豁免只属于本人', () => {
+    expect(shouldReplaceChampion(...at(1, 11), ...at(1, 8), false)).toBe(false);
+    expect(shouldReplaceChampion(...at(2, 6), ...at(1, 2), false)).toBe(false);
+  });
+
+  it('本人豁免不改变「空榜必被取代」', () => {
+    expect(shouldReplaceChampion(...at(0, 0), ...at(1, 0), true)).toBe(true);
+  });
+});
