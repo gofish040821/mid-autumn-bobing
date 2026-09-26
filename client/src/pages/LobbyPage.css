@@ -200,7 +200,10 @@
 
 .lobby-room__join-existing {
   align-self: center;
-  padding: 4px 6px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 6px;
   font-size: 13px;
   line-height: 1.6;
   text-decoration: underline;
@@ -212,7 +215,10 @@
 
 .lobby-room__back {
   align-self: flex-start;
-  padding: 2px 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 6px 8px;
   font-size: 13px;
   background: none;
   border: none;
@@ -282,7 +288,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
+  min-height: 40px;
   font-size: 15px;
   color: var(--ink-faint);
 }
@@ -290,7 +296,7 @@
 .lobby-config__input {
   width: 100%;
   min-width: 0;
-  min-height: 34px;
+  min-height: 40px;
   padding: 4px 8px;
   text-align: center;
   font-size: 15px;
@@ -339,6 +345,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -653,5 +660,37 @@
 
   .lobby-round {
     padding: clamp(50px, 15vw, 58px);
+  }
+
+  .lobby-invite__row .btn {
+    flex: 1 0 auto;
+  }
+
+  .lobby-config__cols,
+  .lobby-config__row {
+    gap: 5px;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.8fr) minmax(0, 0.8fr);
+  }
+}
+
+@media (max-width: 350px) {
+  .lobby-join__field {
+    flex-wrap: wrap;
+  }
+
+  .lobby-join__input {
+    flex-basis: 100%;
+  }
+
+  .lobby-join__random {
+    width: 100%;
+  }
+
+  .lobby-config__actions {
+    flex-wrap: wrap;
+  }
+
+  .lobby-config__actions .btn--ghost {
+    flex: 1 1 100%;
   }
 }

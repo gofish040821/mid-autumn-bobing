@@ -339,35 +339,24 @@ async function main() {
     );
     await shot(hostProbe, '03-lobby-four-players');
 
-    /* ---- 2b. 页脚：创作者署名 + 站点统计 ---- */
+    /* ---- 2b. 页脚：GitHub 贡献者，页面不显示站点统计 ---- */
     const footer = hostPage.locator('.common-footer');
     check('页脚可见', await footer.isVisible().catch(() => false));
 
-    const credit = hostPage.locator('.common-footer__creator');
-    check(
-      '页脚署名指向 GitHub 的 gofish040821',
-      (await credit.getAttribute('href')) === 'https://github.com/gofish040821',
-      await credit.getAttribute('href'),
-    );
-    check(
-      '页脚署名显示成 @gofish040821',
-      ((await credit.innerText()) ?? '').includes('@gofish040821'),
-      await credit.innerText(),
-    );
+    const contributorLogins = ['gofish040821', 'gamer-guangying', 'elephanthy'];
+    check('页脚列出三位 GitHub 贡献者', await footer.locator('.common-footer__link').count() === 3);
+    for (const login of contributorLogins) {
+      const link = footer.locator(`.common-footer__link[href="https://github.com/${login}"]`);
+      check(`@${login} 链接正确`, await link.count() === 1 && (await link.innerText()).includes(`@${login}`));
+    }
 
-    // 署名只用文字和内联 SVG。头像之类的做法会 hotlink 来源不明的图片，
+    // 贡献者链接只用文字和内联 SVG。头像之类的做法会 hotlink 来源不明的图片，
     // 既违反项目约束，也会让上面「没有访问任何外部网络」那条断言挂掉。
     const footerImages = await footer.locator('img').count();
     check('页脚没有引入任何图片（不 hotlink 头像）', footerImages === 0, `${footerImages} 张`);
 
     const footerText = await footer.innerText();
-    check('页脚显示「累计到访」数字', /\d+\s*人到访/.test(footerText), footerText);
-    check('页脚显示「此刻在线」数字', /\d+\s*人在席/.test(footerText), footerText);
-    check('页脚说明了统计从本次开服算起', footerText.includes('自本次开服以来'), footerText);
-
-    // 四人已经入席，此刻在线至少是 4
-    const onlineNow = Number(/(\d+)\s*人在席/.exec(footerText)?.[1] ?? -1);
-    check('「此刻在线」的人数覆盖了已入席的四个人', onlineNow >= 4, `${onlineNow}`);
+    check('页脚没有站点统计', !/人到访|人在席|桌开着|自本次开服以来/.test(footerText), footerText);
 
     /* ---------------- 3. 开局 ---------------- */
     console.log('\n[3] 开局与骰子');
@@ -420,6 +409,7 @@ async function main() {
       return { count: nodes.length, hasSvg: document.querySelectorAll('svg').length };
     });
     check(`游戏页渲染了骰子元素（${diceInfo.count} 个）`, diceInfo.count > 0);
+    check('对局页面显示三位贡献者链接', await hostPage.locator('.game .common-footer__link').count() === 3);
 
     /* ---------------- 4. 轮到谁谁才能博 ---------------- */
     console.log('\n[4] 回合与博饼按钮');

@@ -379,55 +379,64 @@
 
 /* ==========================================================================
    5. 页脚 SiteFooter
-   统计数字 + 创作者署名，压在一行里，字号比正文小一档。
+   项目贡献者链接，窄屏自动换行。
    ========================================================================== */
 
 .common-footer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  margin-top: 22px;
-  padding: 14px 12px 18px;
+  justify-content: center;
+  gap: 8px;
+  margin-top: clamp(12px, 2.5vw, 22px);
+  padding: 14px 12px calc(18px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
   text-align: center;
 }
 
-.common-footer__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: center;
-  gap: 6px;
-  margin: 0;
-  font-family: var(--font-song);
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--ink-faint);
-  letter-spacing: 0.06em;
-}
-
 .common-footer__label {
+  margin: 0;
   font-size: 12px;
   letter-spacing: 0.1em;
   color: var(--ink-faint);
 }
 
-.common-footer__creator {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: var(--gold);
-  text-decoration: none;
-  border-bottom: 1px dashed var(--gold-line);
-  padding-bottom: 1px;
-  transition: color 0.2s var(--ease-soft), border-color 0.2s var(--ease-soft);
+.common-footer__contributors {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
-.common-footer__creator:hover,
-.common-footer__creator:focus-visible {
+.common-footer__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 40px;
+  padding: 6px 10px;
+  color: var(--dai);
+  text-decoration: none;
+  font-family: var(--font-song);
+  font-size: 12px;
+  line-height: 1.4;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 253, 245, 0.5);
+  transition: color 0.2s var(--ease-soft), border-color 0.2s var(--ease-soft),
+    background 0.2s var(--ease-soft);
+}
+
+.common-footer__link:hover,
+.common-footer__link:focus-visible {
   color: var(--cinnabar);
-  border-bottom-color: var(--cinnabar);
+  border-color: var(--cinnabar);
+  background: rgba(255, 253, 245, 0.88);
+  outline-offset: 2px;
 }
 
 .common-footer__icon {
@@ -435,44 +444,15 @@
   opacity: 0.85;
 }
 
-.common-footer__stat {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 3px;
-}
-
-.common-footer__num {
-  font-family: var(--font-song);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink-soft);
-  font-variant-numeric: tabular-nums;
-  /* 数字变化时不要抖动 */
-  min-width: 1.2em;
-  text-align: right;
-}
-
-.common-footer__dot {
-  color: var(--line-strong);
-}
-
-.common-footer__note {
-  flex-basis: 100%;
-  font-size: 11px;
-  opacity: 0.72;
-  letter-spacing: 0.08em;
-}
-
 @media (max-width: 375px) {
   .common-footer {
-    margin-top: 16px;
-    padding: 12px 8px 16px;
+    padding: 12px 8px calc(16px + env(safe-area-inset-bottom));
   }
-  .common-footer__row {
+  .common-footer__contributors {
+    gap: 6px;
+  }
+  .common-footer__link {
+    padding-inline: 8px;
     font-size: 11px;
-    letter-spacing: 0.02em;
-  }
-  .common-footer__num {
-    font-size: 13px;
   }
 }

@@ -14,6 +14,7 @@ import { AWARD_MAP } from '@bobing/shared';
 import type { RollRecord } from '@bobing/shared';
 
 import TopBar from '../components/Common/TopBar';
+import SiteFooter from '../components/Common/SiteFooter';
 import TurnTimer from '../components/TurnTimer/TurnTimer';
 import DiceStage from '../components/Dice/DiceStage';
 import ChampionPanel from '../components/ChampionPanel/ChampionPanel';
@@ -252,6 +253,7 @@ export default function GamePage(): JSX.Element {
           <GameLog snapshot={snapshot} />
         </div>
       </div>
+      <SiteFooter />
     </div>
   );
 }

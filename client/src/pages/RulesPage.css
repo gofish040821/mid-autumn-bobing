@@ -174,9 +174,43 @@
   color: var(--ink-faint);
 }
 
-/* ---------- 桌面端：三步横排、内容居中收窄 ---------- */
+/* 窄屏收紧留白，让主要操作更早出现在首屏。 */
+@media (max-width: 759px) {
+  .rules-page {
+    gap: 12px;
+    padding-top: 12px;
+  }
 
-@media (min-width: 640px) {
+  .rules-head__moon {
+    width: clamp(52px, 15vw, 68px);
+  }
+
+  .rules-head__rule {
+    margin: 4px 0 0;
+  }
+
+  .rules-steps {
+    gap: 8px;
+  }
+
+  .rules-step {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .rules-step__icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .rules-step__desc {
+    line-height: 1.55;
+  }
+}
+
+/* ---------- 宽屏：三步横排、内容居中收窄 ---------- */
+
+@media (min-width: 760px) {
   .rules-page {
     gap: 22px;
   }
