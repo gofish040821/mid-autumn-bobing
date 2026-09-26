@@ -124,3 +124,39 @@ export function diceSum(dice: readonly number[]): number {
 export function diceKey(dice: readonly number[]): string {
   return [...dice].sort((a, b) => a - b).join('');
 }
+
+/**
+ * 同档状元的次级比较值：**剩余点数之和**。
+ *
+ * 榜首先比 championRank；rank 相同时再比这个值，大者胜。
+ * 例：同为四点红，444426 余 2+6=8，小于 444456 的 5+6=11。
+ *
+ * 只有「四点红 / 五红 / 五子登科」存在可比的余数：
+ *  - 四点红   四颗四点固定，比余下两颗之和；
+ *  - 五红     五颗四点固定，比余下那一颗；
+ *  - 五子登科 五颗同点固定，比余下那一颗。
+ *
+ * 固定组合（状元插金花、六杯红、遍地锦、六抔黑）没有任何余数，
+ * 恒为 0 —— 也就是同档之间仍然先出现者优先。
+ */
+export function championTiebreak(awardId: AwardId, dice: readonly number[]): number {
+  const total = diceSum(dice);
+  switch (awardId) {
+    case 'FOUR_FOUR':
+      // 四颗四点 = 16，余下两颗之和
+      return total - 4 * 4;
+    case 'FIVE_FOUR':
+      // 五颗四点 = 20，余下一颗
+      return total - 5 * 4;
+    case 'FIVE_SCHOLAR': {
+      // 五颗同点（必然非 4，否则会被五红先匹配），余下一颗
+      const counts = countFaces(dice);
+      for (let face = 1; face <= DICE_FACES; face += 1) {
+        if (counts[face] === 5) return total - 5 * face;
+      }
+      return 0;
+    }
+    default:
+      return 0;
+  }
+}

@@ -52,7 +52,8 @@ const D_ONE_SHOW = faces(4, 2, 3, 5, 6, 2); //      一秀  +1
 const D_TWO_LIFT = faces(4, 4, 2, 3, 5, 6); //      二举  +2
 const D_THREE_RED = faces(4, 4, 4, 2, 3, 5); //     三红  +5
 const D_DUITANG = faces(1, 2, 3, 4, 5, 6); //       对堂  +15
-const D_FOUR_FOUR = faces(4, 4, 4, 4, 2, 6); //     四点红   状元 rank 1
+const D_FOUR_FOUR = faces(4, 4, 4, 4, 2, 6); //     四点红   状元 rank 1，余 2+6=8
+const D_FOUR_FOUR_BIG = faces(4, 4, 4, 4, 5, 6); // 四点红   状元 rank 1，余 5+6=11
 const D_FIVE_SCHOLAR = faces(3, 3, 3, 3, 3, 6); //  五子登科 状元 rank 2
 const D_SIX_FOUR = faces(4, 4, 4, 4, 4, 4); //      六杯红   状元 rank 6
 
@@ -705,15 +706,55 @@ describe('追状元', () => {
     expect(currentPlayerId(h)).toBe(expected[0]);
   });
 
-  it('同等级不能反超，先出现者保持状元', () => {
-    const first = playTurn(h, D_FOUR_FOUR);
-    const challenger = playTurn(h, D_FOUR_FOUR); // 同样是四点红 rank 1
+  it('同档且余数相同，先出现者保持状元', () => {
+    const first = playTurn(h, D_FOUR_FOUR); // 444426，余 8
+    const challenger = playTurn(h, D_FOUR_FOUR); // 同样是 444426，rank 与余数都相同
     expect(challenger.replacedChampion).toBe(false);
     expect(challenger.isChampionTier).toBe(true);
     const snap = h.engine.snapshot();
     expect(snap.champion.playerId).toBe(first.playerId);
+    expect(snap.champion.tiebreak).toBe(8);
     expect(snap.champion.replacements).toBe(0);
     expect(snap.stats.championReplacements).toBe(0);
+  });
+
+  it('同档状元再比剩余点数之和：余数大者反超，余数小者不能', () => {
+    // 座位 1 先以 444426（余 8）坐庄；追完一圈回到普通回合
+    const first = playTurn(h, D_FOUR_FOUR);
+    playTurn(h, D_NONE); // 座位 2 追
+    playTurn(h, D_NONE); // 座位 3
+    playTurn(h, D_NONE); // 座位 4
+    expect(h.engine.snapshot().phase).toBe('NORMAL_TURN');
+
+    // 座位 1 再博出同档但余数更大的 444456（余 11）：连自己都能反超
+    const bigger = playTurn(h, D_FOUR_FOUR_BIG);
+    expect(bigger.isChampionTier).toBe(true);
+    expect(bigger.replacedChampion).toBe(true);
+    expect(bigger.becameFirstChampion).toBe(false);
+
+    let snap = h.engine.snapshot();
+    expect(snap.champion.playerId).toBe(first.playerId);
+    expect(snap.champion.rank).toBe(1);
+    expect(snap.champion.tiebreak).toBe(11);
+    expect(snap.champion.replacements).toBe(1);
+    expect(snap.stats.championReplacements).toBe(1);
+    // 刷新了榜首，所以又开了一轮追状元
+    expect(snap.phase).toBe('CHAMPION_CHASE');
+    expect(snap.champion.chaseTotal).toBe(3);
+    expect(snap.champion.chaseDone).toBe(0);
+
+    // 再追完一圈，座位 1 这次博出余数更小的 444426（余 8）：不能反超
+    playTurn(h, D_NONE); // 座位 2
+    playTurn(h, D_NONE); // 座位 3
+    playTurn(h, D_NONE); // 座位 4
+    const smaller = playTurn(h, D_FOUR_FOUR);
+    expect(smaller.isChampionTier).toBe(true);
+    expect(smaller.replacedChampion).toBe(false);
+
+    snap = h.engine.snapshot();
+    expect(snap.champion.playerId).toBe(first.playerId);
+    expect(snap.champion.tiebreak).toBe(11); // 仍是最高的那一次
+    expect(snap.stats.championReplacements).toBe(1);
   });
 
   it('更高等级可以反超，金榜易主', () => {

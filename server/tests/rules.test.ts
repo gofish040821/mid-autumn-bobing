@@ -13,6 +13,7 @@ import { AWARDS, AWARD_MAP } from '@bobing/shared';
 import type { AwardId } from '@bobing/shared';
 
 import {
+  championTiebreak,
   countFaces,
   diceKey,
   diceToChinese,
@@ -285,5 +286,56 @@ describe('RuleEngine · 工具函数', () => {
   it('diceKey 与点数顺序无关（用于去重）', () => {
     expect(diceKey([1, 2, 3, 4, 5, 6])).toBe(diceKey([6, 5, 4, 3, 2, 1]));
     expect(diceKey([4, 4, 4, 4, 1, 1])).toBe('114444');
+  });
+});
+
+describe('championTiebreak · 同档状元的剩余点数之和', () => {
+  it('四点红：比余下两颗之和', () => {
+    expect(championTiebreak('FOUR_FOUR', [4, 4, 4, 4, 1, 2])).toBe(3);
+    expect(championTiebreak('FOUR_FOUR', [4, 4, 4, 4, 2, 6])).toBe(8);
+    expect(championTiebreak('FOUR_FOUR', [4, 4, 4, 4, 5, 6])).toBe(11);
+    // 用户给的例子：444412 < 444456
+    expect(championTiebreak('FOUR_FOUR', [4, 4, 4, 4, 1, 2])).toBeLessThan(
+      championTiebreak('FOUR_FOUR', [4, 4, 4, 4, 5, 6]),
+    );
+  });
+
+  it('五红：比余下那一颗', () => {
+    expect(championTiebreak('FIVE_FOUR', [4, 4, 4, 4, 4, 1])).toBe(1);
+    expect(championTiebreak('FIVE_FOUR', [4, 4, 4, 4, 4, 6])).toBe(6);
+  });
+
+  it('五子登科：比余下那一颗', () => {
+    expect(championTiebreak('FIVE_SCHOLAR', [3, 3, 3, 3, 3, 2])).toBe(2);
+    expect(championTiebreak('FIVE_SCHOLAR', [5, 5, 5, 5, 5, 4])).toBe(4);
+    expect(championTiebreak('FIVE_SCHOLAR', [6, 6, 6, 6, 6, 1])).toBe(1);
+  });
+
+  it('固定组合没有余数，恒为 0（同档先到先得）', () => {
+    expect(championTiebreak('CHAMPION_FLOWER', [4, 4, 4, 4, 1, 1])).toBe(0);
+    expect(championTiebreak('SIX_FOUR', [4, 4, 4, 4, 4, 4])).toBe(0);
+    expect(championTiebreak('BROCADE', [1, 1, 1, 1, 1, 1])).toBe(0);
+    expect(championTiebreak('SIX_BLACK', [6, 6, 6, 6, 6, 6])).toBe(0);
+    expect(championTiebreak('SIX_BLACK', [2, 2, 2, 2, 2, 2])).toBe(0);
+  });
+
+  it('非状元奖项不参与比较，恒为 0', () => {
+    expect(championTiebreak('DUITANG', [1, 2, 3, 4, 5, 6])).toBe(0);
+    expect(championTiebreak('NONE', [2, 3, 5, 6, 1, 2])).toBe(0);
+  });
+
+  it('余数恒在 0~12 之间，且不会为负', () => {
+    for (const award of AWARDS) {
+      if (award.tier !== 'CHAMPION') continue;
+      for (let a = 1; a <= 6; a += 1) {
+        for (let b = 1; b <= 6; b += 1) {
+          const dice = [4, 4, 4, 4, a, b];
+          if (evaluateAwardId(dice) !== award.id) continue;
+          const value = championTiebreak(award.id, dice);
+          expect(value).toBeGreaterThanOrEqual(0);
+          expect(value).toBeLessThanOrEqual(12);
+        }
+      }
+    }
   });
 });

@@ -13,6 +13,7 @@ export function emptyChampionState(): ChampionState {
     awardId: null,
     dice: null,
     rank: 0,
+    tiebreak: 0,
     chaseQueue: [],
     chaseTotal: 0,
     chaseDone: 0,
@@ -37,11 +38,22 @@ export function buildChaseQueue(
 
 /**
  * 是否替换当前状元。
- * 只有**严格更高**的 Champion Rank 才能反超；同等级先出现者优先。
+ *
+ * 两级比较，缺一不可：
+ *  1. Champion Rank 高者胜（插金花 7 → 四点红 1）；
+ *  2. Rank 相同时再比「剩余点数之和」—— 同为四点红，444456 大于 444426。
+ *
+ * 两级都持平才不动，即同档同余数先出现者优先。
  *
  * `emptyChampionState().rank` 是 0，而所有 Champion Tier 的 rank 都 ≥ 1，
  * 于是「本局第一位状元」天然被同一条谓词覆盖，不需要额外的首中分支。
  */
-export function shouldReplaceChampion(currentRank: number, challengerRank: number): boolean {
-  return challengerRank > currentRank;
+export function shouldReplaceChampion(
+  currentRank: number,
+  currentTiebreak: number,
+  challengerRank: number,
+  challengerTiebreak: number,
+): boolean {
+  if (challengerRank !== currentRank) return challengerRank > currentRank;
+  return challengerTiebreak > currentTiebreak;
 }

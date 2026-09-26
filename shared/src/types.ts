@@ -133,6 +133,8 @@ export interface ChampionState {
   dice: number[] | null;
   /** 当前状元的 Champion Rank，用于比较 */
   rank: number;
+  /** 同档状元的次级比较值：剩余点数之和（仅 rank 相同时才用） */
+  tiebreak: number;
   /** 追状元阶段：尚未投掷的挑战者 playerId，按座位顺序 */
   chaseQueue: string[];
   /** 追状元总人数 = N - 1 */

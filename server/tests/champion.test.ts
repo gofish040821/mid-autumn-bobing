@@ -39,6 +39,7 @@ describe('emptyChampionState', () => {
     expect(state.awardId).toBeNull();
     expect(state.dice).toBeNull();
     expect(state.rank).toBe(0);
+    expect(state.tiebreak).toBe(0);
     expect(state.chaseQueue).toEqual([]);
     expect(state.chaseTotal).toBe(0);
     expect(state.chaseDone).toBe(0);
@@ -107,29 +108,53 @@ describe('buildChaseQueue · 追状元队列', () => {
 });
 
 describe('shouldReplaceChampion · 反超判定', () => {
-  it('只有严格更高等级才能反超', () => {
-    expect(shouldReplaceChampion(1, 2)).toBe(true);
-    expect(shouldReplaceChampion(1, 7)).toBe(true);
-    expect(shouldReplaceChampion(6, 7)).toBe(true);
+  const at = (rank: number, tiebreak = 0) => [rank, tiebreak] as const;
+
+  it('等级更高就能反超', () => {
+    expect(shouldReplaceChampion(...at(1), ...at(2))).toBe(true);
+    expect(shouldReplaceChampion(...at(1), ...at(7))).toBe(true);
+    expect(shouldReplaceChampion(...at(6), ...at(7))).toBe(true);
   });
 
-  it('同等级先出现者优先，不能反超', () => {
+  it('等级更低不能反超，余数再大也没用', () => {
+    expect(shouldReplaceChampion(...at(7, 0), ...at(1, 99))).toBe(false);
+    expect(shouldReplaceChampion(...at(4, 0), ...at(3, 99))).toBe(false);
+    expect(shouldReplaceChampion(...at(2, 0), ...at(1, 99))).toBe(false);
+  });
+
+  it('同等级比剩余点数之和：余数大者反超', () => {
+    // 同为四点红：444426（余 8）小于 444456（余 11）
+    expect(shouldReplaceChampion(...at(1, 8), ...at(1, 11))).toBe(true);
+    // 同为五红：剩下那颗 2 小于 6
+    expect(shouldReplaceChampion(...at(3, 2), ...at(3, 6))).toBe(true);
+  });
+
+  it('同等级余数相等或更小，先出现者保持状元', () => {
+    expect(shouldReplaceChampion(...at(1, 8), ...at(1, 8))).toBe(false);
+    expect(shouldReplaceChampion(...at(1, 11), ...at(1, 3))).toBe(false);
+  });
+
+  it('完整覆盖等级矩阵：高者恒真，低者恒假，同档看余数', () => {
+    for (let current = 1; current <= 7; current += 1) {
+      for (let challenger = 1; challenger <= 7; challenger += 1) {
+        if (challenger !== current) {
+          expect(shouldReplaceChampion(...at(current, 5), ...at(challenger, 5))).toBe(
+            challenger > current,
+          );
+        }
+      }
+    }
+    // 同档：余数 4 与 9 一一对比，只有 9 能反超 4
     for (let rank = 1; rank <= 7; rank += 1) {
-      expect(shouldReplaceChampion(rank, rank)).toBe(false);
+      expect(shouldReplaceChampion(...at(rank, 4), ...at(rank, 9))).toBe(true);
+      expect(shouldReplaceChampion(...at(rank, 9), ...at(rank, 4))).toBe(false);
+      expect(shouldReplaceChampion(...at(rank, 4), ...at(rank, 4))).toBe(false);
     }
   });
 
-  it('更低等级不能反超', () => {
-    expect(shouldReplaceChampion(7, 1)).toBe(false);
-    expect(shouldReplaceChampion(4, 3)).toBe(false);
-    expect(shouldReplaceChampion(2, 1)).toBe(false);
-  });
-
-  it('完整覆盖 7×7 的等级矩阵', () => {
-    for (let current = 1; current <= 7; current += 1) {
-      for (let challenger = 1; challenger <= 7; challenger += 1) {
-        expect(shouldReplaceChampion(current, challenger)).toBe(challenger > current);
-      }
+  it('空榜（rank 0）必被任何状元档取代', () => {
+    for (let rank = 1; rank <= 7; rank += 1) {
+      expect(shouldReplaceChampion(...at(0, 0), ...at(rank, 0))).toBe(true);
     }
   });
 });

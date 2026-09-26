@@ -7,7 +7,7 @@
  *  - 5 秒超时由服务端定时器触发，不依赖客户端；
  *  - 所有状态变化都通过 EngineEvent + 全量 Snapshot 广播，客户端状态永远可自愈。
  */
-import { AWARD_MAP, DEFAULT_ROOM_CONFIG, NICKNAME_MAX, PRIZE_NAMES, transitionMsFor } from '@bobing/shared';
+import { AWARD_MAP, DEFAULT_ROOM_CONFIG, NICKNAME_MAX, PRIZE_NAMES, championTiebreak, transitionMsFor } from '@bobing/shared';
 import type {
   AwardDefinition,
   AwardId,
@@ -835,6 +835,7 @@ export class GameEngine {
     // emptyChampionState().rank 是 0，所有 Champion Tier 的 rank 都 ≥ 1，
     // 于是「本局第一位状元」天然被同一条谓词覆盖。
     //
+    // 比较分两级：先比 championRank，同档再比「剩余点数之和」(tiebreak)。
     // 榜被刷新才换人、才开新一轮追状元；正在追状元时再易主只夺榜，
     // 队列原样保留（一轮追状元只开一次，不嵌套）。
     let previousChampionNickname: string | null = null;
@@ -842,7 +843,15 @@ export class GameEngine {
     if (award.tier === 'CHAMPION') {
       this.state.stats.firstChampionRollIndex ??= this.state.stats.totalRolls;
 
-      if (shouldReplaceChampion(this.state.champion.rank, award.championRank)) {
+      const tiebreak = championTiebreak(award.id, dice);
+      if (
+        shouldReplaceChampion(
+          this.state.champion.rank,
+          this.state.champion.tiebreak,
+          award.championRank,
+          tiebreak,
+        )
+      ) {
         const isFirst = this.state.champion.playerId === null;
         // 追状元只在普通回合里开一轮；正在追状元时再易主只夺榜，不嵌套开新一轮
         const opensChase = !isChase;
@@ -860,6 +869,7 @@ export class GameEngine {
           awardId: award.id,
           dice: [...dice],
           rank: award.championRank,
+          tiebreak,
           // 开新的一轮才重新排队；途中易主保留原队列，剩下的挑战者照样博完
           chaseQueue: opensChase
             ? buildChaseQueue(this.state.players, player.id)
@@ -919,7 +929,8 @@ export class GameEngine {
       this.log(`${roll.nickname}沉醉月色，系统替他掷出了骰子。`, 'warn');
     }
     if (award.tier === 'CHAMPION') {
-      this.log(`${roll.nickname}博出${award.name}！`, 'champion');
+      // 带上骰子：同档状元是靠「剩余点数之和」分高下的，只看奖项名看不出差别
+      this.log(`${roll.nickname}博出${award.name}（${diceToChinese(roll.dice)}）！`, 'champion');
       if (roll.becameFirstChampion) {
         this.log('首位状元出现，追状元开启。', 'champion');
       } else if (roll.replacedChampion) {
