@@ -170,6 +170,15 @@ let actionCounter = 0;
 let revealTimer: number | null = null;
 let flashTimer: number | null = null;
 let listenersAttached = false;
+// 动画期间只保存新快照，所有可见数据在落定时一起发布。
+let pendingSnapshot: GameSnapshot | null = null;
+let pendingEffects: Array<() => void> = [];
+
+function cancelReveal(): void {
+  clearRevealTimer();
+  pendingSnapshot = null;
+  pendingEffects = [];
+}
 
 /** initSocket 注册的快照写入器；所有动作方法共用同一套版本校验。 */
 let snapshotSink: (snapshot: GameSnapshot) => void = () => {};
@@ -246,9 +255,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     /* ---- 服务端事件 ---- */
 
     const applySnapshot = (snapshot: GameSnapshot): void => {
-      const current = get().snapshot;
+      const current = pendingSnapshot ?? get().snapshot;
       // 绝不用旧版本状态覆盖新版本
       if (current && current.roomId === snapshot.roomId && snapshot.stateVersion < current.stateVersion) {
+        return;
+      }
+      if (get().rollAnim?.rolling && (!current || current.roomId === snapshot.roomId)) {
+        pendingSnapshot = snapshot;
+        set({ serverTimeOffset: snapshot.serverTime - Date.now() });
         return;
       }
       set({
@@ -257,6 +271,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       });
     };
     snapshotSink = applySnapshot;
+    const afterReveal = (effect: () => void): void => {
+      if (get().rollAnim?.rolling) pendingEffects.push(effect);
+      else effect();
+    };
 
     socket.on('room:snapshot', ({ snapshot }) => applySnapshot(snapshot));
     socket.on('room:playerJoined', ({ snapshot }) => applySnapshot(snapshot));
@@ -272,6 +290,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     socket.on('game:started', ({ snapshot }) => {
+      cancelReveal();
+      set({ rollAnim: null, celebration: null, championFlash: null });
       applySnapshot(snapshot);
       get().pushToast('今夜开席，月下博饼。', 'info');
     });
@@ -281,8 +301,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     socket.on('score:updated', ({ snapshot }) => applySnapshot(snapshot));
 
     socket.on('roll:started', ({ snapshot, playerId, seat, auto }) => {
-      applySnapshot(snapshot);
-      clearRevealTimer();
+      cancelReveal();
       const nickname = snapshot.players.find((p) => p.id === playerId)?.nickname ?? '';
       const durationMs = diceMsFor(null);
       animKey += 1;
@@ -299,7 +318,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
           durationMs,
         },
         celebration: null,
+        championFlash: null,
       });
+      // roll:started 也携带本次结算后的快照，必须先开启遮蔽再接收。
+      applySnapshot(snapshot);
       audio.playDiceSequence(durationMs);
     });
 
@@ -314,47 +336,49 @@ export const useGameStore = create<GameStore>((set, get) => ({
         return;
       }
 
-      set({
-        rollAnim: { ...anim, rolling: true, dice: roll.dice, durationMs },
-      });
-
       const elapsed = performance.now() - anim.startedAt;
       const wait = Math.max(140, durationMs - elapsed);
-      revealTimer = window.setTimeout(() => reveal(roll), wait);
+      clearRevealTimer();
+      revealTimer = window.setTimeout(() => {
+        if (get().rollAnim?.key === anim.key) reveal(roll);
+      }, wait);
     });
 
     socket.on('champion:started', ({ snapshot }) => {
       applySnapshot(snapshot);
       const c = snapshot.champion;
-      if (c.nickname) get().pushToast(`${c.nickname}首中状元，追状元开启！`, 'info');
+      if (c.nickname) afterReveal(() => get().pushToast(`${c.nickname}首中状元，追状元开启！`, 'info'));
     });
 
     socket.on('champion:updated', ({ snapshot, replaced, previousNickname }) => {
       applySnapshot(snapshot);
       if (!replaced) return;
-      flashKey += 1;
-      set({
-        championFlash: {
-          key: flashKey,
-          previousNickname,
-          newNickname: snapshot.champion.nickname ?? '',
-        },
+      afterReveal(() => {
+        flashKey += 1;
+        set({
+          championFlash: {
+            key: flashKey,
+            previousNickname,
+            newNickname: snapshot.champion.nickname ?? '',
+          },
+        });
+        audio.play('champion_replaced');
+        if (flashTimer !== null) window.clearTimeout(flashTimer);
+        flashTimer = window.setTimeout(() => set({ championFlash: null }), 2300);
       });
-      audio.play('champion_replaced');
-      if (flashTimer !== null) window.clearTimeout(flashTimer);
-      flashTimer = window.setTimeout(() => set({ championFlash: null }), 2300);
     });
 
     socket.on('champion:queueUpdated', ({ snapshot }) => applySnapshot(snapshot));
 
     socket.on('game:finished', ({ snapshot }) => {
       applySnapshot(snapshot);
-      audio.play('game_finish');
+      afterReveal(() => audio.play('game_finish'));
     });
 
     // 房主离席，这一桌作废。服务端那边座位凭证已经作废了，本地也得跟着忘掉，
     // 否则刷新之后会拿着旧 token 去进一个已经不存在的房间，报一个莫名其妙的错。
     socket.on('room:closed', ({ roomId: closedRoomId, message }) => {
+      cancelReveal();
       clearSession(closedRoomId);
       // 只清自己这一桌的：URL 上的房间码如果就是那张散掉的桌，也该擦掉，
       // 不然刷新后又被带回去。人在别桌时（理论上不该收到）不动 URL。
@@ -392,12 +416,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     /* ---- 揭晓 ---- */
     function reveal(roll: RollRecord): void {
       clearRevealTimer();
+      const snapshot = pendingSnapshot;
+      const effects = pendingEffects;
+      pendingSnapshot = null;
+      pendingEffects = [];
       const anim = get().rollAnim;
       if (anim && anim.playerId === roll.playerId) {
-        set({ rollAnim: { ...anim, rolling: false, dice: roll.dice } });
+        set({
+          ...(snapshot ? { snapshot } : {}),
+          rollAnim: { ...anim, rolling: false, dice: roll.dice },
+        });
       } else {
         animKey += 1;
         set({
+          ...(snapshot ? { snapshot } : {}),
           rollAnim: {
             key: animKey,
             playerId: roll.playerId,
@@ -415,6 +447,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ celebration: { key: celebrationKey, roll } });
       const sound = AWARD_MAP[roll.awardId]?.sound;
       if (sound) audio.play(sound);
+      effects.forEach((effect) => effect());
     }
   },
 
@@ -553,9 +586,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       snapshotSink(res.data);
       set({ hasJoined: true });
     } else if (res.error === 'INVALID_SESSION') {
+      cancelReveal();
       clearSession(roomCode);
       set((s) => ({
         hasJoined: false,
+        rollAnim: null,
+        celebration: null,
+        championFlash: null,
         lastError: res.message,
         identity: { ...s.identity, sessionToken: null, playerId: null },
       }));
@@ -641,6 +678,7 @@ type StoreSet = (
  * roomId 传 null 表示「还没选桌」，此时清掉 URL 上的房间码。
  */
 function applyRoom(roomId: string | null, set: StoreSet): void {
+  cancelReveal();
   if (roomId) writeRoomCodeToUrl(roomId);
   else clearRoomCodeFromUrl();
 
@@ -648,6 +686,9 @@ function applyRoom(roomId: string | null, set: StoreSet): void {
   set((s) => ({
     roomCode: roomId,
     hasJoined: false,
+    rollAnim: null,
+    celebration: null,
+    championFlash: null,
     lastError: null,
     identity: {
       ...s.identity,

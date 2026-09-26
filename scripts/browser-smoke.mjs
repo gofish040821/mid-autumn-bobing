@@ -177,8 +177,8 @@ async function waitForDiceSettled(page, timeoutMs = 20_000) {
   const sample = () =>
     page.evaluate(() => {
       const pips = [];
-      for (const die of document.querySelectorAll('.dice-stage__die')) {
-        const circles = die.querySelectorAll('circle');
+      for (const die of document.querySelectorAll('.dice-stage[data-rolling="false"] .dice-stage__die')) {
+        const circles = die.querySelectorAll('.die-cube__face--front circle');
         if (circles.length > 0) pips.push(circles.length);
       }
       // 奖项从结果条上读，别去日志里捞整句话。
@@ -432,7 +432,19 @@ async function main() {
     if (roller) {
       const probe = [hostProbe, ...others].find((p) => p.label === roller.label);
       const before = await probe.page.evaluate(() => document.body.innerText);
+      const viewers = [hostProbe, ...others];
+      const panels = '.game__players,.game__score,.game__inv,.game__log,.game__champ';
+      const readPanels = (page) => page.locator(panels).allTextContents();
+      const previousPanels = await Promise.all(viewers.map((p) => readPanels(p.page)));
       await probe.page.locator('.btn-roll').first().click();
+      await probe.page.locator('.dice-stage[data-rolling="true"]').waitFor();
+      await probe.page.waitForTimeout(450);
+      for (let index = 0; index < viewers.length; index++) {
+        const viewer = viewers[index];
+        check(`${viewer.label} · 翻滚期间积分、库存、记录和状元不提前更新`,
+          JSON.stringify(await readPanels(viewer.page)) === JSON.stringify(previousPanels[index]));
+        check(`${viewer.label} · 翻滚期间没有开奖浮层`, await viewer.page.locator('.quiet-award').count() === 0);
+      }
       await waitForDiceSettled(probe.page);
       const after = await probe.page.evaluate(() => document.body.innerText);
       check(`${roller.label} 点击后页面有变化`, before !== after);
@@ -462,6 +474,14 @@ async function main() {
 
     /* ---------------- 5. 手机端游戏页 ---------------- */
     console.log('\n[5] 手机视口下的游戏页');
+    await hostPage.setViewportSize({ width: 375, height: 667 });
+    await hostPage.waitForTimeout(200);
+    await checkNoOverflow(hostProbe, '手机375对局');
+    check('手机对局默认收起题名榜和记录', await hostPage.locator('.game-fold:not([open])').count() === 2);
+    await shot(hostProbe, '06-mobile-game');
+    await hostPage.setViewportSize({ width: 320, height: 640 });
+    await checkNoOverflow(hostProbe, '手机320对局');
+    await hostPage.setViewportSize({ width: 1440, height: 900 });
     const mobile = await browser.newContext({
       viewport: { width: 375, height: 667 },
       isMobile: true,

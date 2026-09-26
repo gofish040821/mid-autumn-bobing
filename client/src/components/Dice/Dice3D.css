@@ -1,0 +1,73 @@
+/* Six solid faces share a perspective camera; trajectories have no result data. */
+.dice-stage--3d .dice-stage__board {
+  max-width: 460px;
+  padding: 58px 24px 44px;
+  min-height: 238px;
+}
+.dice-stage--3d .dice-stage__bowl {
+  inset: 18px 0 12px;
+  background: radial-gradient(ellipse at 50% 30%, #fffefa 20%, #f4f0e7 65%, #ded6c7 100%);
+  border-color: #cfc7b8;
+  box-shadow: inset 0 6px 16px #76674a18, 0 12px 22px -18px #493e2e66;
+}
+.dice-stage--3d .dice-stage__dice {
+  display: grid;
+  grid-template-columns: repeat(3, 48px);
+  gap: 24px 32px;
+  perspective: 750px;
+  overflow: visible;
+}
+.dice-stage--3d .dice-stage__die {
+  width: 48px;
+  height: 48px;
+  transform-style: preserve-3d;
+  filter: none;
+}
+.die-cube {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform: rotateX(-14deg) rotateY(12deg);
+}
+.die-cube__face {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: #faf7ef;
+  border: 1px solid #c9c1b3;
+  backface-visibility: hidden;
+  box-shadow: inset 0 0 6px #9b8d7220;
+}
+.die-cube__face svg { width: 100%; height: 100%; }
+.die-cube__face svg > rect, .die-cube__face .dice-face__cloud { display: none; }
+.die-cube__face--front { transform: translateZ(24px); }
+.die-cube__face--back { transform: rotateY(180deg) translateZ(24px); }
+.die-cube__face--right { transform: rotateY(90deg) translateZ(24px); background: #ded7ca; }
+.die-cube__face--left { transform: rotateY(-90deg) translateZ(24px); }
+.die-cube__face--top { transform: rotateX(90deg) translateZ(24px); background: #fffefa; }
+.die-cube__face--bottom { transform: rotateX(-90deg) translateZ(24px); }
+.dice-stage--3d.is-rolling:not(.is-quiet) .dice-stage__die { animation: die-hop var(--roll-duration) linear infinite; }
+.dice-stage--3d.is-rolling:not(.is-quiet) .die-cube { animation: die-tumble var(--roll-duration) linear infinite; }
+@keyframes die-hop {
+  0%, 100% { transform: translateY(0); }
+  22% { transform: translateY(calc(-1 * var(--jump))) translateX(calc(8px * var(--tilt))); }
+  48% { transform: translateY(0); }
+  63% { transform: translateY(-16px) translateX(calc(-5px * var(--tilt))); }
+  80% { transform: translateY(0); }
+  89% { transform: translateY(-5px); }
+}
+@keyframes die-tumble {
+  0% { transform: rotateX(-14deg) rotateY(12deg); }
+  35% { transform: rotateX(346deg) rotateY(252deg) rotateZ(calc(40deg * var(--tilt))); }
+  70% { transform: rotateX(626deg) rotateY(602deg) rotateZ(calc(-12deg * var(--tilt))); }
+  94%, 100% { transform: rotateX(706deg) rotateY(732deg); }
+}
+@media (max-width: 639px) {
+  .dice-stage--3d .dice-stage__board { min-height: 204px; padding: 44px 18px 32px; max-width: 360px; }
+  .dice-stage--3d .dice-stage__dice { gap: 20px 28px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dice-stage--3d.is-rolling .die-cube,
+  .dice-stage--3d.is-rolling .dice-stage__die { animation: none !important; }
+}

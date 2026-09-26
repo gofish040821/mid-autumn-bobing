@@ -13,7 +13,6 @@ import ToastStack from './components/Common/ToastStack';
 import ConnectionBanner from './components/Common/ConnectionBanner';
 import RuleModal from './components/RuleModal/RuleModal';
 import CelebrationLayer from './components/AwardCelebration/CelebrationLayer';
-import ChampionFlash from './components/ChampionFlash/ChampionFlash';
 
 import RulesPage from './pages/RulesPage';
 import LobbyPage from './pages/LobbyPage';
@@ -94,7 +93,6 @@ function GameApp() {
       {/* 游戏页与大厅页顶部工具条由各自页面渲染，这里只挂全局浮层 */}
       <RuleModal />
       <CelebrationLayer />
-      <ChampionFlash />
       <ToastStack />
 
       {/* 无障碍：给屏幕阅读器一个当前阶段提示。

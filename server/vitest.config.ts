@@ -15,7 +15,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts', '../client/src/**/*.test.ts'],
     // 引擎测试大量使用 FakeClock，不需要真实等待
     testTimeout: 20_000,
   },

@@ -10,6 +10,8 @@
  *   桌面 >= 1024  → 三栏（席位 / 主舞台 / 库存）+ 题名榜·博饼记录两栏
  */
 import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { AWARD_MAP } from '@bobing/shared';
 import type { RollRecord } from '@bobing/shared';
 
@@ -44,6 +46,21 @@ interface LastRollLineProps {
   roll: RollRecord;
 }
 
+/** 手机上收起次要信息；切到宽屏时展开，用户仍可手动切换。 */
+function GameFold({ className, title, children }: { className: string; title: string; children: ReactNode }) {
+  const [expanded, setExpanded] = useState(() => window.matchMedia('(min-width: 640px)').matches);
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 640px)');
+    const update = () => setExpanded(query.matches);
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  return <details className={`${className} game-block game-fold`} open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
+    <summary>{title}</summary>
+    {children}
+  </details>;
+}
+
 /** 最近一次开奖的一行紧凑回显。 */
 function LastRollLine({ roll }: LastRollLineProps) {
   const color = AWARD_MAP[roll.awardId]?.palette.primary ?? 'var(--ink)';
@@ -72,6 +89,7 @@ function LastRollLine({ roll }: LastRollLineProps) {
 }
 
 export default function GamePage(): JSX.Element {
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }); }, []);
   const snapshot = useGameStore((s) => s.snapshot);
   const myId = useGameStore((s) => s.identity.playerId);
   const canRoll = useGameStore(selectCanRoll);
@@ -104,7 +122,7 @@ export default function GamePage(): JSX.Element {
   } else if (!isMyTurn) {
     hint = `「${currentTurn.nickname}」正在博饼`;
   } else {
-    hint = '轮到你出手，三十秒内未博饼将由系统代掷';
+    hint = '轮到你出手，倒计时结束后由系统代掷';
   }
 
   const pageClass = `page game${isChase ? ' game--chase' : ''}${isMyTurn ? ' game--mine' : ''}`;
@@ -221,7 +239,7 @@ export default function GamePage(): JSX.Element {
 
         {/* 6 最近一次开奖回显 */}
         <div className="game__result game-block">
-          {lastRoll ? (
+          {rollAnim?.rolling ? <p className="game__result-empty t-muted">六骰未定，静候佳音。</p> : lastRoll ? (
             <LastRollLine roll={lastRoll} />
           ) : (
             <p className="game__result-empty t-muted">今夜尚无记录，静候第一声骰响。</p>
@@ -239,9 +257,9 @@ export default function GamePage(): JSX.Element {
         </div>
 
         {/* 9 积分榜 */}
-        <div className="game__score game-block">
+        <GameFold className="game__score" title="查看题名榜">
           <ScoreBoard snapshot={snapshot} myPlayerId={myId} title="单局题名榜" />
-        </div>
+        </GameFold>
 
         {/* 10 库存 */}
         <div className="game__inv game-block">
@@ -249,9 +267,9 @@ export default function GamePage(): JSX.Element {
         </div>
 
         {/* 11 游戏日志 */}
-        <div className="game__log game-block">
+        <GameFold className="game__log" title="查看博饼记录">
           <GameLog snapshot={snapshot} />
-        </div>
+        </GameFold>
       </div>
       <SiteFooter />
     </div>

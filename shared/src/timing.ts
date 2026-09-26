@@ -15,20 +15,21 @@ export interface RollTiming {
   celebrationMs: number;
 }
 
+// 所有奖项掷骰时长相同，观众不能从动画长短提前推测奖项。
 export const ROLL_TIMING: Readonly<Record<AwardId, RollTiming>> = {
   CHAMPION_FLOWER: { diceMs: 1800, celebrationMs: 2600 },
-  SIX_FOUR: { diceMs: 1750, celebrationMs: 2000 },
-  BROCADE: { diceMs: 1750, celebrationMs: 1900 },
-  SIX_BLACK: { diceMs: 1750, celebrationMs: 1900 },
-  FIVE_FOUR: { diceMs: 1700, celebrationMs: 1800 },
-  FIVE_SCHOLAR: { diceMs: 1700, celebrationMs: 1800 },
-  FOUR_FOUR: { diceMs: 1700, celebrationMs: 1700 },
-  DUITANG: { diceMs: 1600, celebrationMs: 1500 },
-  FOUR_ADVANCE: { diceMs: 1500, celebrationMs: 1250 },
-  THREE_RED: { diceMs: 1500, celebrationMs: 1250 },
-  TWO_LIFT: { diceMs: 1400, celebrationMs: 1050 },
-  ONE_SHOW: { diceMs: 1400, celebrationMs: 1050 },
-  NONE: { diceMs: 1300, celebrationMs: 850 },
+  SIX_FOUR: { diceMs: 1800, celebrationMs: 2000 },
+  BROCADE: { diceMs: 1800, celebrationMs: 1900 },
+  SIX_BLACK: { diceMs: 1800, celebrationMs: 1900 },
+  FIVE_FOUR: { diceMs: 1800, celebrationMs: 1800 },
+  FIVE_SCHOLAR: { diceMs: 1800, celebrationMs: 1800 },
+  FOUR_FOUR: { diceMs: 1800, celebrationMs: 1700 },
+  DUITANG: { diceMs: 1800, celebrationMs: 1500 },
+  FOUR_ADVANCE: { diceMs: 1800, celebrationMs: 1250 },
+  THREE_RED: { diceMs: 1800, celebrationMs: 1250 },
+  TWO_LIFT: { diceMs: 1800, celebrationMs: 1050 },
+  ONE_SHOW: { diceMs: 1800, celebrationMs: 1050 },
+  NONE: { diceMs: 1800, celebrationMs: 850 },
 };
 
 /** 服务端推进下一回合前额外留的缓冲，避免和客户端动画抢最后几十毫秒。 */
